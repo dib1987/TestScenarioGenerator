@@ -1,0 +1,19 @@
+# Core dependencies
+anthropic>=0.18.0          # Claude AI API
+gitpython>=3.1.40          # Git operations
+PyYAML>=6.0.1              # Configuration files
+python-dotenv>=1.0.0       # Environment variables
+requests>=2.31.0           # HTTP requests (for GitHub API)
+
+# Web application dependencies
+flask>=3.0.0               # Web framework
+flask-cors>=4.0.0          # CORS support
+markdown>=3.5.0            # Convert markdown to HTML
+
+# Production server
+gunicorn>=21.2.0           # WSGI HTTP Server for production
+
+# Development dependencies
+pytest>=7.4.0              # Testing framework
+black>=23.0.0              # Code formatting
+pylint>=3.0.0              # Code linting

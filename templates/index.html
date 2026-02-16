@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR Test Scenario Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-flask"></i>
+                <h1>PR Test Scenario Generator</h1>
+            </div>
+            <p class="subtitle">Automatically generate comprehensive test scenarios from your pull requests using AI</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Input Section -->
+            <section class="input-section" id="inputSection">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-code-branch"></i>
+                        <h2>Analyze Pull Request</h2>
+                    </div>
+                    <div class="card-body">
+                        <form id="prForm">
+                            <div class="tabs">
+                                <button type="button" class="tab-btn active" data-tab="pr-url">
+                                    <i class="fab fa-github"></i> GitHub PR URL
+                                </button>
+                                <button type="button" class="tab-btn" data-tab="manual-diff">
+                                    <i class="fas fa-file-code"></i> Manual Diff
+                                </button>
+                            </div>
+
+                            <!-- PR URL Tab -->
+                            <div class="tab-content active" id="pr-url">
+                                <div class="form-group">
+                                    <label for="prUrl">
+                                        <i class="fas fa-link"></i> Pull Request URL
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="prUrl"
+                                        name="prUrl"
+                                        placeholder="https://github.com/owner/repo/pull/123"
+                                        class="form-input"
+                                    >
+                                    <small class="form-help">
+                                        Paste the full URL of your GitHub pull request
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Manual Diff Tab -->
+                            <div class="tab-content" id="manual-diff">
+                                <div class="form-group">
+                                    <label for="diffText">
+                                        <i class="fas fa-file-code"></i> Git Diff Content
+                                    </label>
+                                    <textarea
+                                        id="diffText"
+                                        name="diffText"
+                                        placeholder="Paste your git diff here..."
+                                        class="form-textarea"
+                                        rows="10"
+                                    ></textarea>
+                                    <small class="form-help">
+                                        Paste the output from 'git diff' command
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Options -->
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="generateCode" name="generateCode">
+                                    <span>Generate test code (Python/pytest)</span>
+                                </label>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fas fa-magic"></i>
+                                <span>Generate Test Scenarios</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Loading Section -->
+            <section class="loading-section hidden" id="loadingSection">
+                <div class="card">
+                    <div class="loading-animation">
+                        <div class="spinner"></div>
+                        <h3>Analyzing your changes...</h3>
+                        <p id="loadingText">Fetching PR data from GitHub...</p>
+                        <div class="progress-steps">
+                            <div class="step" id="step1">
+                                <i class="fas fa-download"></i>
+                                <span>Fetching PR</span>
+                            </div>
+                            <div class="step" id="step2">
+                                <i class="fas fa-search"></i>
+                                <span>Analyzing Code</span>
+                            </div>
+                            <div class="step" id="step3">
+                                <i class="fas fa-robot"></i>
+                                <span>Generating Tests</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section hidden" id="resultsSection">
+                <!-- PR Info Card -->
+                <div class="card" id="prInfoCard">
+                    <div class="card-header">
+                        <i class="fab fa-github"></i>
+                        <h2>Pull Request Information</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="pr-info-grid">
+                            <div class="info-item">
+                                <i class="fas fa-heading"></i>
+                                <div>
+                                    <span class="info-label">Title</span>
+                                    <span class="info-value" id="prTitle">-</span>
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-user"></i>
+                                <div>
+                                    <span class="info-label">Author</span>
+                                    <span class="info-value" id="prAuthor">-</span>
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-code-branch"></i>
+                                <div>
+                                    <span class="info-label">Branches</span>
+                                    <span class="info-value" id="prBranches">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-bar"></i>
+                        <h2>Changes Summary</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <i class="fas fa-file-code"></i>
+                                <div class="stat-value" id="totalFiles">0</div>
+                                <div class="stat-label">Files Changed</div>
+                            </div>
+                            <div class="stat-card stat-success">
+                                <i class="fas fa-plus"></i>
+                                <div class="stat-value" id="totalAdditions">0</div>
+                                <div class="stat-label">Lines Added</div>
+                            </div>
+                            <div class="stat-card stat-danger">
+                                <i class="fas fa-minus"></i>
+                                <div class="stat-value" id="totalDeletions">0</div>
+                                <div class="stat-label">Lines Deleted</div>
+                            </div>
+                        </div>
+
+                        <!-- File Changes -->
+                        <div class="file-changes" id="fileChanges">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Test Scenarios Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-vial"></i>
+                        <h2>Generated Test Scenarios</h2>
+                        <div class="card-actions">
+                            <button class="btn btn-secondary btn-sm" id="downloadMdBtn">
+                                <i class="fas fa-download"></i> Download MD
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="copyBtn">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="test-scenarios" id="testScenarios">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Test Code Card (if generated) -->
+                <div class="card hidden" id="testCodeCard">
+                    <div class="card-header">
+                        <i class="fas fa-code"></i>
+                        <h2>Generated Test Code</h2>
+                        <div class="card-actions">
+                            <button class="btn btn-secondary btn-sm" id="downloadCodeBtn">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="copyCodeBtn">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <pre><code id="testCode" class="language-python"></code></pre>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" id="analyzeAnotherBtn">
+                        <i class="fas fa-redo"></i>
+                        Analyze Another PR
+                    </button>
+                </div>
+            </section>
+
+            <!-- Error Section -->
+            <section class="error-section hidden" id="errorSection">
+                <div class="card error-card">
+                    <div class="card-body">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error</h3>
+                        <p id="errorMessage"></p>
+                        <button class="btn btn-secondary" id="tryAgainBtn">
+                            <i class="fas fa-redo"></i>
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Powered by <strong>Claude AI</strong> | Built with ❤️ for better testing</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

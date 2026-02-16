@@ -1,0 +1,59 @@
+# Configuration file for PR Test Scenario Generator
+
+# AI Model Settings
+ai:
+  model: "claude-sonnet-4-5-20250929"
+  max_tokens: 4096
+  temperature: 0.7
+
+# GitHub Settings
+github:
+  # Base URL for GitHub API (change for GitHub Enterprise)
+  api_url: "https://api.github.com"
+  # Timeout for API requests (seconds)
+  timeout: 30
+
+# Output Settings
+output:
+  # Default output directory for generated test scenarios
+  output_dir: "./test_outputs"
+  # Default file format (md, txt, html)
+  format: "md"
+  # Include diff summary in output
+  include_summary: true
+  # Include change types analysis
+  include_change_types: true
+
+# Test Generation Settings
+test_generation:
+  # Include unit tests
+  generate_unit_tests: true
+  # Include integration tests
+  generate_integration_tests: true
+  # Include edge case tests
+  generate_edge_cases: true
+  # Include security tests
+  generate_security_tests: true
+  # Include performance tests
+  generate_performance_tests: false
+  # Priority levels to include (high, medium, low)
+  priority_levels:
+    - high
+    - medium
+    - low
+
+# Code Analysis Settings
+code_analysis:
+  # Maximum number of files to analyze in detail
+  max_files_detailed: 10
+  # Maximum lines per file to include in prompt
+  max_lines_per_file: 50
+  # Supported programming languages
+  languages:
+    - python
+    - javascript
+    - typescript
+    - java
+    - go
+    - rust
+    - ruby
