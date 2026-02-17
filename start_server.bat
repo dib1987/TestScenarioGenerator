@@ -1,18 +1,32 @@
 @echo off
 echo ======================================================================
-echo PR Test Scenario Generator
+echo PR Test Scenario Generator - Web Application
 echo ======================================================================
 echo.
-echo Starting application...
+echo Starting web server...
 echo.
-echo This is an interactive CLI tool that will guide you through
-echo generating test scenarios from PR code changes.
+echo Once started, open your browser and go to:
+echo   http://localhost:5000
 echo.
-echo Press Ctrl+C to exit
+echo Press Ctrl+C to stop the server
 echo ======================================================================
 echo.
 
 cd /d "%~dp0"
-call venv\Scripts\activate.bat
-python main.py
 
+if not exist venv\Scripts\python.exe (
+    echo ERROR: Virtual environment not found!
+    echo Please run: python -m venv venv
+    echo Then run: venv\Scripts\pip install -r requirements.txt
+    pause
+    exit /b 1
+)
+
+venv\Scripts\python.exe app.py
+
+if errorlevel 1 (
+    echo.
+    echo ERROR: Server exited with an error. See above for details.
+)
+
+pause
