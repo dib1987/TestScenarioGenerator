@@ -1,20 +1,14 @@
-# 🚀 Deployment Guide
+# Deployment Guide
 
-Complete guide to deploying the PR Test Scenario Generator to various cloud platforms.
+Complete guide to deploying the PR Test Scenario Generator to AWS and Azure.
 
 ## Table of Contents
 - [Prerequisites](#prerequisites)
 - [Environment Variables](#environment-variables)
-- [Deploy to Render](#deploy-to-render-recommended)
-- [Deploy to Heroku](#deploy-to-heroku)
-- [Deploy to Railway](#deploy-to-railway)
-- [Deploy to AWS/Azure/GCP](#deploy-to-other-platforms)
-- [Docker Deployment](#docker-deployment)
-- [VPS Deployment (DigitalOcean / Linode / EC2)](#vps-deployment)
+- [Deploy to AWS](#deploy-to-aws)
+- [Deploy to Azure](#deploy-to-azure)
 - [CI/CD with GitHub Actions](#cicd-with-github-actions)
-- [Nginx Reverse Proxy Setup](#nginx-reverse-proxy-setup)
 - [Production Hardening](#production-hardening)
-- [Post-Deployment](#post-deployment)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -27,11 +21,7 @@ Before deploying, ensure you have:
 2. **Anthropic API Key** - Get from [console.anthropic.com](https://console.anthropic.com/)
 3. **GitHub Token** (Optional) - For analyzing private repositories
 4. **Git** installed locally
-5. **Cloud Platform Account** - Choose one:
-   - [Render](https://render.com) - Recommended, free tier available
-   - [Heroku](https://heroku.com) - Popular, paid tiers
-   - [Railway](https://railway.app) - Easy deployment
-   - AWS, Azure, GCP - Enterprise solutions
+5. **Cloud Platform Account** - AWS or Azure
 
 ---
 
@@ -51,184 +41,6 @@ PORT=5000                          # Port (usually auto-set by platform)
 FLASK_DEBUG=False                  # Set to False in production
 FLASK_SECRET_KEY=your-secret-key   # Random string for sessions
 ```
-
----
-
-## Deploy to Render (Recommended)
-
-### Why Render?
-- ✅ Free tier available
-- ✅ Automatic deployments from GitHub
-- ✅ Custom domains
-- ✅ SSL certificates included
-- ✅ Easy environment variable management
-
-### Step-by-Step Deployment
-
-1. **Push Code to GitHub**
-   ```bash
-   cd "c:\Agentic Workflow\TestScenarioGenerator"
-
-   # Initialize git if not already done
-   git init
-   git add .
-   git commit -m "Initial commit - PR Test Scenario Generator"
-
-   # Create GitHub repo and push
-   # (Create repo on github.com first, then:)
-   git remote add origin https://github.com/yourusername/TestScenarioGenerator.git
-   git branch -M main
-   git push -u origin main
-   ```
-
-2. **Sign Up for Render**
-   - Go to [render.com](https://render.com)
-   - Sign up with GitHub (recommended)
-
-3. **Create New Web Service**
-   - Click "New +" → "Web Service"
-   - Click "Connect account" if needed
-   - Select your repository
-   - Click "Connect"
-
-4. **Configure Service**
-   - **Name**: `pr-test-generator` (or your choice)
-   - **Region**: Choose closest to you
-   - **Branch**: `main`
-   - **Root Directory**: Leave blank
-   - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `gunicorn app:app`
-
-5. **Advanced Settings**
-   - **Auto-Deploy**: Yes (recommended)
-   - **Instance Type**: Free (or paid for better performance)
-
-6. **Add Environment Variables**
-   - Click "Advanced" → "Add Environment Variable"
-   - Add these:
-     ```
-     Key: ANTHROPIC_API_KEY
-     Value: your_actual_api_key_here
-
-     Key: GITHUB_TOKEN
-     Value: your_github_token_here
-
-     Key: FLASK_DEBUG
-     Value: False
-     ```
-
-7. **Deploy!**
-   - Click "Create Web Service"
-   - Wait 2-5 minutes for deployment
-   - Your app will be live at: `https://pr-test-generator.onrender.com`
-
-### Auto-Deployments
-Every push to `main` branch will automatically trigger a new deployment!
-
----
-
-## Deploy to Heroku
-
-### Prerequisites
-- Heroku account
-- Heroku CLI installed
-
-### Installation (Heroku CLI)
-
-**Windows (PowerShell as Administrator):**
-```powershell
-# Using Chocolatey
-choco install heroku-cli
-
-# Or download from: https://devcenter.heroku.com/articles/heroku-cli
-```
-
-**macOS:**
-```bash
-brew tap heroku/brew && brew install heroku
-```
-
-**Linux:**
-```bash
-curl https://cli-assets.heroku.com/install.sh | sh
-```
-
-### Deployment Steps
-
-1. **Login to Heroku**
-   ```bash
-   heroku login
-   ```
-
-2. **Create Heroku App**
-   ```bash
-   cd "c:\Agentic Workflow\TestScenarioGenerator"
-   heroku create your-app-name
-   # Example: heroku create pr-test-gen-2024
-   ```
-
-3. **Set Environment Variables**
-   ```bash
-   heroku config:set ANTHROPIC_API_KEY=your_actual_key_here
-   heroku config:set GITHUB_TOKEN=your_github_token_here
-   heroku config:set FLASK_DEBUG=False
-   ```
-
-4. **Deploy**
-   ```bash
-   git push heroku main
-   ```
-
-5. **Open Your App**
-   ```bash
-   heroku open
-   ```
-
-### View Logs
-```bash
-heroku logs --tail
-```
-
-### Scale Dynos (if needed)
-```bash
-heroku ps:scale web=1
-```
-
----
-
-## Deploy to Railway
-
-Railway offers the simplest deployment process!
-
-### Steps
-
-1. **Visit [railway.app](https://railway.app)**
-
-2. **Sign Up/Login** with GitHub
-
-3. **Create New Project**
-   - Click "New Project"
-   - Click "Deploy from GitHub repo"
-   - Select your repository
-   - Railway auto-detects Python!
-
-4. **Add Environment Variables**
-   - Click on your project
-   - Go to "Variables" tab
-   - Add:
-     - `ANTHROPIC_API_KEY`
-     - `GITHUB_TOKEN`
-     - `FLASK_DEBUG` = `False`
-
-5. **Deploy**
-   - Railway automatically deploys!
-   - Get your URL from the "Settings" tab
-
-### Custom Domain (Optional)
-- Go to Settings → Domains
-- Add your custom domain
-- Update DNS records as instructed
 
 ---
 
@@ -264,7 +76,7 @@ aws configure
 
 Get your Access Key from: AWS Console → IAM → Users → Your User → Security Credentials → Create Access Key
 
-#### Step 2: Create a `Procfile` (already exists — verify it)
+#### Step 2: Verify Procfile
 
 ```
 web: gunicorn app:app --bind 0.0.0.0:$PORT --workers 4 --timeout 120
@@ -294,7 +106,7 @@ eb create pr-test-gen-prod \
 
 This takes 3–5 minutes. It creates an EC2 instance, security groups, and a load balancer.
 
-#### Step 5: Set Environment Variables (Secrets)
+#### Step 5: Set Environment Variables
 
 **Never hardcode keys — set them as environment variables:**
 
@@ -331,7 +143,7 @@ eb terminate           # Shut down environment (stops billing)
 
 ---
 
-### Option B: AWS App Runner (Container-based, simpler)
+### Option B: AWS App Runner (Container-based)
 
 App Runner runs your Docker container fully managed — no server config needed.
 
@@ -394,8 +206,6 @@ Azure App Service is the Azure equivalent of Elastic Beanstalk — managed platf
 ```bash
 # Windows (PowerShell as Administrator)
 winget install Microsoft.AzureCLI
-
-# Or download from: https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-windows
 ```
 
 #### Step 1: Login to Azure
@@ -407,8 +217,6 @@ az login
 
 #### Step 2: Create a Resource Group
 
-A resource group is a container that holds related Azure resources.
-
 ```bash
 az group create \
   --name pr-test-rg \
@@ -416,8 +224,6 @@ az group create \
 ```
 
 #### Step 3: Create an App Service Plan
-
-The plan defines the pricing tier and compute resources.
 
 ```bash
 az appservice plan create \
@@ -448,7 +254,7 @@ az webapp create \
 
 This returns a Git URL like: `https://pr-test-generator.scm.azurewebsites.net/pr-test-generator.git`
 
-#### Step 5: Set Environment Variables (App Settings)
+#### Step 5: Set Environment Variables
 
 ```bash
 az webapp config appsettings set \
@@ -463,8 +269,6 @@ az webapp config appsettings set \
 ```
 
 #### Step 6: Configure Startup Command
-
-Tell Azure to use Gunicorn:
 
 ```bash
 az webapp config set \
@@ -615,7 +419,7 @@ jobs:
   deploy:
     name: Deploy to Elastic Beanstalk
     runs-on: ubuntu-latest
-    needs: test  # Only deploy if tests pass
+    needs: test
 
     steps:
       - name: Checkout code
@@ -873,493 +677,6 @@ jobs:
 
 ---
 
-## Post-Deployment
-
-### 1. Test Your Deployment
-
-Visit your app URL and test:
-- ✅ Homepage loads
-- ✅ Can analyze a public GitHub PR
-- ✅ Test scenarios generate successfully
-- ✅ Download functionality works
-
-### 2. Set Up Custom Domain (Optional)
-
-**Render:**
-- Settings → Custom Domains → Add Domain
-
-**Heroku:**
-```bash
-heroku domains:add www.yourdomain.com
-```
-
-**Railway:**
-- Settings → Domains → Add Custom Domain
-
-### 3. Enable HTTPS
-Most platforms (Render, Heroku, Railway) provide free SSL certificates automatically!
-
-### 4. Set Up Monitoring
-
-**Render:** Built-in metrics and logs
-
-**Heroku:**
-```bash
-heroku addons:create papertrail
-heroku logs --tail
-```
-
-**Railway:** Built-in logging in dashboard
-
-### 5. Configure Auto-Scaling (Optional)
-
-For high traffic, enable auto-scaling in your platform's settings.
-
----
-
-## Troubleshooting
-
-### Application Won't Start
-
-**Check logs:**
-```bash
-# Render: View in dashboard
-# Heroku:
-heroku logs --tail
-
-# Railway: View in dashboard
-```
-
-**Common issues:**
-- Missing environment variables
-- Wrong start command in Procfile
-- Dependency installation failed
-
-### "Application Error" Page
-
-1. Check environment variables are set
-2. Verify Procfile exists and is correct
-3. Check Python version in runtime.txt
-4. View platform logs for details
-
-### API Key Errors
-
-- Verify `ANTHROPIC_API_KEY` is set correctly
-- No quotes or extra spaces in the value
-- Key has sufficient credits at console.anthropic.com
-
-### GitHub Token Issues
-
-- Check token has `repo` or `public_repo` scope
-- Token not expired
-- For private repos, ensure `GITHUB_TOKEN` is set
-
-### Slow Performance
-
-**Free tiers** may have:
-- Slower response times
-- Cold starts (first request after inactivity)
-
-**Solutions:**
-- Upgrade to paid tier
-- Use keep-alive service (for Render free tier)
-- Optimize code and reduce dependencies
-
-### Database/State Issues
-
-This app is stateless, but if you add database:
-- Use platform-provided databases
-- Store connection string in environment variables
-
----
-
----
-
-## Docker Deployment
-
-Docker containerizes the app so it runs identically on any machine or cloud platform.
-
-### Step 1: Create Dockerfile
-
-Create a file named `Dockerfile` in your project root:
-
-```dockerfile
-# Use official Python slim image
-FROM python:3.11-slim
-
-# Set working directory
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy and install Python dependencies first (layer caching)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY . .
-
-# Expose port
-EXPOSE 5000
-
-# Run with Gunicorn (production WSGI server)
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120"]
-```
-
-### Step 2: Create .dockerignore
-
-Create `.dockerignore` to keep the image lean:
-
-```
-venv/
-__pycache__/
-*.pyc
-*.pyo
-.env
-.git
-*.md
-output/
-```
-
-### Step 3: Create docker-compose.yml (optional but recommended)
-
-```yaml
-version: '3.8'
-
-services:
-  web:
-    build: .
-    ports:
-      - "5000:5000"
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
-      - FLASK_DEBUG=False
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-```
-
-### Step 4: Build and Run
-
-```bash
-# Build the Docker image
-docker build -t pr-test-generator .
-
-# Run with environment variables from .env file
-docker run -d \
-  --name pr-test-gen \
-  --env-file .env \
-  -p 5000:5000 \
-  pr-test-generator
-
-# Or using docker-compose
-docker compose up -d
-
-# View logs
-docker logs -f pr-test-gen
-
-# Stop
-docker compose down
-```
-
-### Step 5: Push to Docker Hub (for cloud deployment)
-
-```bash
-# Login to Docker Hub
-docker login
-
-# Tag your image
-docker tag pr-test-generator yourdockerhubuser/pr-test-generator:latest
-
-# Push
-docker push yourdockerhubuser/pr-test-generator:latest
-```
-
----
-
-## VPS Deployment
-
-Deploy on a raw Linux server (DigitalOcean Droplet, AWS EC2, Linode, Vultr, etc.).
-
-### Recommended: DigitalOcean Droplet ($6/month)
-
-**Step 1: Create a Droplet**
-- Ubuntu 22.04 LTS
-- Basic plan: 1 vCPU, 1 GB RAM (enough to start)
-- Add your SSH key
-
-**Step 2: Connect and Prepare Server**
-
-```bash
-# SSH into your server
-ssh root@your-server-ip
-
-# Update packages
-apt update && apt upgrade -y
-
-# Install Python, pip, git, nginx
-apt install -y python3.11 python3.11-venv python3-pip git nginx certbot python3-certbot-nginx
-
-# Create a non-root user for safety
-adduser appuser
-usermod -aG sudo appuser
-su - appuser
-```
-
-**Step 3: Clone and Set Up the App**
-
-```bash
-# Clone your repository
-git clone https://github.com/yourusername/TestScenarioGenerator.git
-cd TestScenarioGenerator
-
-# Create virtual environment
-python3.11 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Create .env file
-nano .env
-# Paste your ANTHROPIC_API_KEY and GITHUB_TOKEN, save with Ctrl+O, exit Ctrl+X
-```
-
-**Step 4: Test the App Runs**
-
-```bash
-python app.py
-# Should print: Running on http://0.0.0.0:5000
-# Press Ctrl+C to stop
-```
-
-**Step 5: Create a systemd Service (auto-start on reboot)**
-
-```bash
-sudo nano /etc/systemd/system/pr-test-generator.service
-```
-
-Paste this content:
-
-```ini
-[Unit]
-Description=PR Test Scenario Generator
-After=network.target
-
-[Service]
-User=appuser
-WorkingDirectory=/home/appuser/TestScenarioGenerator
-EnvironmentFile=/home/appuser/TestScenarioGenerator/.env
-ExecStart=/home/appuser/TestScenarioGenerator/venv/bin/gunicorn app:app \
-    --workers 4 \
-    --bind 127.0.0.1:5000 \
-    --timeout 120 \
-    --access-logfile /var/log/pr-test-gen/access.log \
-    --error-logfile /var/log/pr-test-gen/error.log
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-# Create log directory
-sudo mkdir -p /var/log/pr-test-gen
-sudo chown appuser:appuser /var/log/pr-test-gen
-
-# Enable and start the service
-sudo systemctl daemon-reload
-sudo systemctl enable pr-test-generator
-sudo systemctl start pr-test-generator
-
-# Check status
-sudo systemctl status pr-test-generator
-```
-
-**Step 6: View Live Logs**
-
-```bash
-sudo journalctl -u pr-test-generator -f
-```
-
----
-
-## Nginx Reverse Proxy Setup
-
-Nginx sits in front of Gunicorn — handles SSL, compression, and forwards traffic to your app.
-
-### Step 1: Create Nginx Config
-
-```bash
-sudo nano /etc/nginx/sites-available/pr-test-generator
-```
-
-Paste:
-
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com www.yourdomain.com;
-
-    # Security headers
-    add_header X-Content-Type-Options nosniff;
-    add_header X-Frame-Options DENY;
-    add_header X-XSS-Protection "1; mode=block";
-
-    # Increase timeout for AI processing (Claude can take 30+ seconds)
-    proxy_read_timeout 180s;
-    proxy_connect_timeout 10s;
-
-    # Max upload size for large diffs
-    client_max_body_size 10M;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Static files served directly by Nginx (faster)
-    location /static/ {
-        alias /home/appuser/TestScenarioGenerator/static/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
-
-### Step 2: Enable the Site
-
-```bash
-# Enable site
-sudo ln -s /etc/nginx/sites-available/pr-test-generator /etc/nginx/sites-enabled/
-
-# Test config
-sudo nginx -t
-
-# Reload Nginx
-sudo systemctl reload nginx
-```
-
-### Step 3: Add Free SSL with Let's Encrypt
-
-```bash
-# Get SSL certificate (replace with your actual domain)
-sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
-
-# Certbot auto-updates your Nginx config for HTTPS
-# Auto-renewal is set up automatically
-
-# Test renewal
-sudo certbot renew --dry-run
-```
-
-Your app is now live at `https://yourdomain.com` with HTTPS!
-
----
-
-## CI/CD with GitHub Actions
-
-Automatically deploy to your VPS every time you push to `main`.
-
-### Step 1: Add GitHub Secrets
-
-In your GitHub repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
-
-| Secret Name | Value |
-|---|---|
-| `ANTHROPIC_API_KEY` | Your Claude API key |
-| `GITHUB_TOKEN_SECRET` | Your GitHub token |
-| `VPS_HOST` | Your server IP address |
-| `VPS_USER` | `appuser` |
-| `VPS_SSH_KEY` | Your private SSH key content |
-
-### Step 2: Create the Workflow File
-
-Create `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to Production
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies and run tests
-        run: |
-          pip install -r requirements.txt
-          python -m pytest tests/ -v || true  # Don't fail if no tests yet
-
-      - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            cd ~/TestScenarioGenerator
-            git pull origin main
-            source venv/bin/activate
-            pip install -r requirements.txt --quiet
-            sudo systemctl restart pr-test-generator
-            echo "Deployment complete!"
-
-      - name: Notify on success
-        if: success()
-        run: echo "✅ Deployed successfully to production!"
-
-      - name: Notify on failure
-        if: failure()
-        run: echo "❌ Deployment failed — check logs!"
-```
-
-### Step 3: For Render/Railway/Heroku (simpler)
-
-These platforms auto-deploy on every `git push origin main` — no additional workflow needed.
-
-For **Render** with a deploy hook:
-
-```yaml
-name: Deploy to Render
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Render Deploy Hook
-        run: |
-          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-```
-
----
-
 ## Production Hardening
 
 ### 1. Gunicorn Tuning
@@ -1374,7 +691,7 @@ web: gunicorn app:app --workers 4 --worker-class gthread --threads 2 --timeout 1
 - 1 CPU → 3 workers
 - 2 CPU → 5 workers
 
-### 2. Rate Limiting (prevent abuse)
+### 2. Rate Limiting
 
 Add to `requirements.txt`:
 ```
@@ -1392,89 +709,22 @@ limiter = Limiter(
     default_limits=["100 per hour", "10 per minute"]
 )
 
-# Apply to API endpoints
 @app.route('/api/analyze-pr', methods=['POST'])
 @limiter.limit("5 per minute")
 def analyze_pr():
     ...
 ```
 
-### 3. Environment-Specific Config
+### 3. Health Check Endpoint
 
-```python
-# In app.py
-import os
-
-ENV = os.environ.get('FLASK_ENV', 'production')
-
-if ENV == 'production':
-    app.config['DEBUG'] = False
-    app.config['TESTING'] = False
-elif ENV == 'development':
-    app.config['DEBUG'] = True
-```
-
-### 4. Health Check Endpoint
-
-Already implemented at `/health`. Use it with:
-- **Render/Railway**: Set health check path to `/health`
+Already implemented at `/health`. Configure it with:
 - **AWS ALB**: Point health check to `/health`
-- **Uptime monitoring**: Use UptimeRobot (free) to ping `/health` every 5 minutes
+- **Azure App Service**: Set health check path to `/health` in Monitoring settings
 
-### 5. Logging in Production
+### 4. Security Best Practices
 
-```python
-import logging
-from logging.handlers import RotatingFileHandler
-
-if not app.debug:
-    handler = RotatingFileHandler('logs/app.log', maxBytes=10240, backupCount=10)
-    handler.setLevel(logging.INFO)
-    app.logger.addHandler(handler)
-```
-
-### 6. Keep Render Free Tier Alive
-
-Free tier sleeps after 15 minutes of inactivity. Use a free ping service:
-
-- [UptimeRobot](https://uptimerobot.com) — ping your `/health` endpoint every 5 min (free)
-- Alternatively, upgrade to Render's $7/month plan for always-on
-
----
-
-## Performance Optimization
-
-### 1. Use Production WSGI Server
-Already configured with Gunicorn in Procfile ✅
-
-### 2. Enable Caching
-Add Redis for caching Claude AI responses:
-```bash
-# Heroku
-heroku addons:create heroku-redis:mini
-
-# Render
-# Add Redis instance in dashboard
-```
-
-### 3. Optimize Worker Count
-```
-web: gunicorn app:app --workers 4 --timeout 120
-```
-
-### 4. Enable Compression
-Flask-Compress (add to requirements.txt):
-```python
-from flask_compress import Compress
-Compress(app)
-```
-
----
-
-## Security Best Practices
-
-1. **Never commit `.env` file** - Already in .gitignore ✅
-2. **Use environment variables** - Already configured ✅
+1. **Never commit `.env` file** - Already in .gitignore
+2. **Use environment variables** - Already configured
 3. **Set `FLASK_DEBUG=False`** in production
 4. **Use strong `FLASK_SECRET_KEY`**
 5. **Keep dependencies updated**:
@@ -1485,88 +735,36 @@ Compress(app)
 
 ---
 
-## Updating Your Deployment
+## Troubleshooting
 
-### Auto-Deploy (Recommended)
+### Application Won't Start
 
-**Render/Railway/Heroku with GitHub:**
-Just push to main branch:
+**Check logs:**
 ```bash
-git add .
-git commit -m "Update feature"
-git push origin main
-```
-Deployment happens automatically!
+# AWS Elastic Beanstalk
+eb logs
 
-### Manual Deploy
-
-**Heroku:**
-```bash
-git push heroku main
+# Azure App Service
+az webapp log tail --name pr-test-generator --resource-group pr-test-rg
 ```
 
-**Render/Railway:**
-Click "Manual Deploy" in dashboard
+**Common issues:**
+- Missing environment variables
+- Wrong start command in Procfile
+- Dependency installation failed
+
+### API Key Errors
+
+- Verify `ANTHROPIC_API_KEY` is set correctly
+- No quotes or extra spaces in the value
+- Key has sufficient credits at [console.anthropic.com](https://console.anthropic.com)
+
+### GitHub Token Issues
+
+- Check token has `repo` or `public_repo` scope
+- Token not expired
+- For private repos, ensure `GITHUB_TOKEN` is set
 
 ---
-
-## Cost Estimation
-
-### Free Tiers
-
-| Platform | Free Tier | Limitations |
-|----------|-----------|-------------|
-| **Render** | 750 hours/month | Sleeps after 15min inactivity |
-| **Railway** | $5 free credit/month | Pay for usage beyond |
-| **Heroku** | Eco dynos $5/month | Must pay for any dyno |
-
-### Paid Tiers (Monthly)
-
-| Platform | Starting Price | Features |
-|----------|----------------|----------|
-| **Render** | $7/month | Always-on, better performance |
-| **Heroku** | $7/month | Basic dyno, always-on |
-| **Railway** | Usage-based | Pay for what you use |
-
-### API Costs
-
-- **Anthropic Claude API**: Pay per token
-  - Sonnet: ~$3 per million tokens
-  - Haiku: Cheaper option
-- Budget: ~$5-20/month for moderate usage
-
----
-
-## Support
-
-### Platform-Specific Help
-
-- **Render**: [render.com/docs](https://render.com/docs)
-- **Heroku**: [devcenter.heroku.com](https://devcenter.heroku.com/)
-- **Railway**: [docs.railway.app](https://docs.railway.app/)
-
-### Application Issues
-
-- Check application logs
-- Review environment variables
-- Test locally first: `python app.py`
-- Open GitHub issue for bugs
-
----
-
-## Next Steps
-
-After deployment:
-
-1. ✅ Test thoroughly with different PR URLs
-2. ✅ Share with your team
-3. ✅ Set up monitoring and alerts
-4. ✅ Configure custom domain
-5. ✅ Add to your CI/CD pipeline
-6. ✅ Collect user feedback
-
----
-
-**Happy Deploying! 🚀**
 
 For questions or issues, create an issue on GitHub or check the main README.md.
