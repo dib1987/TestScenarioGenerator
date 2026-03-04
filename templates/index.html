@@ -196,6 +196,9 @@
                             <button class="btn btn-secondary btn-sm" id="downloadMdBtn">
                                 <i class="fas fa-download"></i> Download MD
                             </button>
+                            <button class="btn btn-secondary btn-sm hidden" id="downloadScenariosCsvBtn">
+                                <i class="fas fa-file-csv"></i> Download CSV
+                            </button>
                             <button class="btn btn-secondary btn-sm" id="copyBtn">
                                 <i class="fas fa-copy"></i> Copy
                             </button>
@@ -204,6 +207,34 @@
                     <div class="card-body">
                         <div class="test-scenarios" id="testScenarios">
                             <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Structured Test Cases Card -->
+                <div class="card hidden" id="testCasesCard">
+                    <div class="card-header">
+                        <i class="fas fa-list-check"></i>
+                        <h2>Structured Test Cases</h2>
+                        <span class="badge" id="testCasesCount"></span>
+                        <div class="card-actions">
+                            <button class="btn btn-secondary btn-sm" id="downloadCasesBtn">
+                                <i class="fas fa-download"></i> Download CSV
+                            </button>
+                        </div>
+                    </div>
+                    <div class="test-cases-filters" id="testCasesFilters">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="high">High Priority</button>
+                        <button class="filter-btn" data-filter="medium">Medium</button>
+                        <button class="filter-btn" data-filter="low">Low</button>
+                        <button class="filter-btn" data-filter="unit">Unit</button>
+                        <button class="filter-btn" data-filter="integration">Integration</button>
+                        <button class="filter-btn" data-filter="e2e">E2E</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="test-cases-grid" id="testCasesGrid">
+                            <!-- Populated by JavaScript -->
                         </div>
                     </div>
                 </div>

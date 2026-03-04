@@ -1,3 +1,6 @@
+// Test case field constants
+const VALID_PRIORITIES = ['high', 'medium', 'low'];
+
 // DOM Elements
 const prForm = document.getElementById('prForm');
 const inputSection = document.getElementById('inputSection');
@@ -199,6 +202,19 @@ function showResults(data, isPR = true) {
     // Store raw markdown for download
     window.currentTestScenarios = data.test_scenarios;
 
+    // Show structured test cases if available
+    const testCasesCard = document.getElementById('testCasesCard');
+    const downloadScenariosCsvBtn = document.getElementById('downloadScenariosCsvBtn');
+    if (data.structured_test_cases && data.structured_test_cases.length > 0) {
+        window.currentTestCases = data.structured_test_cases;
+        populateTestCases(data.structured_test_cases);
+        testCasesCard.classList.remove('hidden');
+        downloadScenariosCsvBtn.classList.remove('hidden');
+    } else {
+        testCasesCard.classList.add('hidden');
+        downloadScenariosCsvBtn.classList.add('hidden');
+    }
+
     // Show test code if available
     const testCodeCard = document.getElementById('testCodeCard');
     if (data.test_code) {
@@ -212,6 +228,91 @@ function showResults(data, isPR = true) {
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// Populate structured test cases grid
+function populateTestCases(cases) {
+    const grid = document.getElementById('testCasesGrid');
+    const countBadge = document.getElementById('testCasesCount');
+
+    grid.innerHTML = '';
+    countBadge.textContent = `${cases.length} Test Cases`;
+
+    cases.forEach(tc => {
+        const priority = (tc.priority || 'medium').toLowerCase();
+        const type = (tc.type || 'unit').toLowerCase();
+
+        const stepsHtml = Array.isArray(tc.steps) && tc.steps.length > 0
+            ? `<ol>${tc.steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`
+            : '<p>No steps provided</p>';
+
+        const card = document.createElement('div');
+        card.className = 'test-case-card';
+        card.dataset.priority = priority;
+        card.dataset.type = type;
+        card.innerHTML = `
+            <div class="tc-header">
+                <span class="tc-id">${escapeHtml(tc.id || 'TC-?')}</span>
+                <span class="tc-priority priority-${priority}">${priority.toUpperCase()}</span>
+                <span class="tc-type">${escapeHtml(type)}</span>
+            </div>
+            <h4 class="tc-title">${escapeHtml(tc.title || 'Untitled')}</h4>
+            ${tc.category ? `<div class="tc-category"><i class="fas fa-tag"></i> ${escapeHtml(tc.category)}</div>` : ''}
+            <div class="tc-steps"><strong>Steps:</strong>${stepsHtml}</div>
+            <div class="tc-expected"><strong>Expected:</strong> ${escapeHtml(tc.expected_result || 'N/A')}</div>
+        `;
+        grid.appendChild(card);
+    });
+
+    // Reset filter to "All"
+    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+    const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
+    if (allBtn) allBtn.classList.add('active');
+}
+
+// Filter test case cards
+document.getElementById('testCasesFilters').addEventListener('click', (e) => {
+    const btn = e.target.closest('.filter-btn');
+    if (!btn) return;
+
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const filter = btn.dataset.filter;
+    document.querySelectorAll('.test-case-card').forEach(card => {
+        if (filter === 'all') {
+            card.classList.remove('hidden');
+        } else if (VALID_PRIORITIES.includes(filter)) {
+            card.classList.toggle('hidden', card.dataset.priority !== filter);
+        } else {
+            card.classList.toggle('hidden', card.dataset.type !== filter);
+        }
+    });
+});
+
+// Download test cases as CSV
+document.getElementById('downloadCasesBtn').addEventListener('click', () => {
+    if (!window.currentTestCases || window.currentTestCases.length === 0) return;
+
+    const headers = ['ID', 'Title', 'Type', 'Priority', 'Category', 'Steps', 'Expected Result'];
+    const rows = window.currentTestCases.map(tc => [
+        tc.id || '',
+        tc.title || '',
+        tc.type || '',
+        tc.priority || '',
+        tc.category || '',
+        Array.isArray(tc.steps) ? tc.steps.join(' | ') : '',
+        tc.expected_result || ''
+    ].map(cell => `"${String(cell).replace(/"/g, '""')}"`));
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `test-cases-${Date.now()}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+});
 
 // Show error
 function showError(message) {
@@ -244,7 +345,32 @@ document.getElementById('downloadMdBtn').addEventListener('click', () => {
     a.href = url;
     a.download = `test-scenarios-${Date.now()}.md`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+});
+
+// Download test scenarios as CSV
+document.getElementById('downloadScenariosCsvBtn').addEventListener('click', () => {
+    if (!window.currentTestCases || window.currentTestCases.length === 0) return;
+
+    const headers = ['ID', 'Title', 'Type', 'Priority', 'Category', 'Steps', 'Expected Result'];
+    const rows = window.currentTestCases.map(tc => [
+        tc.id || '',
+        tc.title || '',
+        tc.type || '',
+        tc.priority || '',
+        tc.category || '',
+        Array.isArray(tc.steps) ? tc.steps.join(' | ') : '',
+        tc.expected_result || ''
+    ].map(cell => `"${String(cell).replace(/"/g, '""')}"`));
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `test-scenarios-${Date.now()}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
 });
 
 // Copy markdown
@@ -281,7 +407,7 @@ document.getElementById('downloadCodeBtn').addEventListener('click', () => {
     a.href = url;
     a.download = `test_code_${Date.now()}.py`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
 });
 
 // Copy test code

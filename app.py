@@ -142,7 +142,14 @@ def analyze_pr():
                     'error': f'AI generation error: {error_msg}'
                 }), 500
 
-        # Step 4: Optionally generate test code
+        # Step 4: Generate structured test cases (always, silently degrades on failure)
+        structured_test_cases = []
+        try:
+            structured_test_cases = test_generator.generate_structured_test_cases(test_scenarios)
+        except Exception as e:
+            app.logger.warning(f"Failed to generate structured test cases: {e}")
+
+        # Step 5: Optionally generate test code
         test_code = None
         if generate_code:
             try:
@@ -155,7 +162,7 @@ def analyze_pr():
                 # Don't fail the whole request if code generation fails
                 test_code = f"Error generating test code: {str(e)}"
 
-        # Step 5: Prepare file-by-file analysis
+        # Step 6: Prepare file-by-file analysis
         file_analyses = []
         for file_change in parsed_diff[:10]:  # Limit to 10 files for UI
             file_analyses.append({
@@ -166,7 +173,7 @@ def analyze_pr():
                 'has_deletions': len(file_change['deletions']) > 0
             })
 
-        # Step 6: Convert markdown to HTML for better display
+        # Step 7: Convert markdown to HTML for better display
         test_scenarios_html = markdown.markdown(
             test_scenarios,
             extensions=['fenced_code', 'tables', 'nl2br']
@@ -192,6 +199,7 @@ def analyze_pr():
                 'change_types': change_types,
                 'test_scenarios': test_scenarios,
                 'test_scenarios_html': test_scenarios_html,
+                'structured_test_cases': structured_test_cases,
                 'test_code': test_code,
                 'generated_at': datetime.now().isoformat()
             }
@@ -250,6 +258,13 @@ def analyze_diff():
             pr_context=None
         )
 
+        # Generate structured test cases (always, silently degrades on failure)
+        structured_test_cases = []
+        try:
+            structured_test_cases = test_generator.generate_structured_test_cases(test_scenarios)
+        except Exception as e:
+            app.logger.warning(f"Failed to generate structured test cases: {e}")
+
         # Optionally generate test code
         test_code = None
         if generate_code:
@@ -285,6 +300,7 @@ def analyze_diff():
                 'change_types': change_types,
                 'test_scenarios': test_scenarios,
                 'test_scenarios_html': test_scenarios_html,
+                'structured_test_cases': structured_test_cases,
                 'test_code': test_code,
                 'generated_at': datetime.now().isoformat()
             }

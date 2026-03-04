@@ -6,6 +6,7 @@ Uses Claude AI to generate comprehensive test scenarios from code changes.
 from anthropic import Anthropic
 from typing import Dict, List
 import os
+import json
 
 
 class TestScenarioGenerator:
@@ -142,6 +143,68 @@ Format your response as a structured test plan that a QA engineer can follow.
 """
 
         return prompt
+
+    def generate_structured_test_cases(self, test_scenarios: str) -> list:
+        """
+        Convert test scenarios markdown into a structured JSON list of test cases.
+
+        Args:
+            test_scenarios: The markdown test scenarios text from generate_test_scenarios()
+
+        Returns:
+            List of test case dicts, or [] on parse failure
+        """
+        prompt = f"""Convert the following test scenarios into a structured JSON array of individual test cases.
+
+Test Scenarios:
+{test_scenarios}
+
+Return ONLY a valid JSON array with no other text. Each element must follow this exact schema:
+[
+  {{
+    "id": "TC-001",
+    "title": "Short descriptive title (max 10 words)",
+    "type": "unit",
+    "priority": "high",
+    "category": "Category name (e.g. Authentication, API, Database, UI)",
+    "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
+    "expected_result": "What should happen when the test passes"
+  }}
+]
+
+Rules:
+- "type" must be one of: unit, integration, e2e, security, performance
+- "priority" must be one of: high, medium, low
+- "steps" must be a list of strings (at least 2 steps per test case)
+- Extract every distinct test case from the scenarios above
+- Return only the JSON array, no markdown formatting, no explanation"""
+
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            temperature=0.3,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        text = response.content[0].text.strip()
+
+        # Strip markdown code fences if Claude wrapped the JSON
+        if text.startswith("```"):
+            # Find the first newline (end of opening fence line) and last fence
+            first_newline = text.index("\n")
+            last_fence = text.rfind("```")
+            if last_fence > first_newline:
+                text = text[first_newline + 1:last_fence].strip()
+            else:
+                text = text[first_newline + 1:].strip()
+
+        try:
+            result = json.loads(text)
+            if isinstance(result, list):
+                return result
+            return []
+        except (json.JSONDecodeError, ValueError):
+            return []
 
     def generate_automated_test_code(
         self,

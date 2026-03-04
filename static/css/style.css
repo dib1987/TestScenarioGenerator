@@ -588,3 +588,149 @@ body {
         border-left-color: var(--primary-color);
     }
 }
+
+/* ── Structured Test Cases Card ── */
+.test-cases-filters {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 1rem 1.5rem 0;
+}
+
+.filter-btn {
+    padding: 0.25rem 0.85rem;
+    border-radius: 1rem;
+    border: 1px solid var(--border-color);
+    background: white;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.filter-btn.active,
+.filter-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.test-cases-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+.test-case-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    background: white;
+    transition: box-shadow 0.2s;
+}
+
+.test-case-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.test-case-card.hidden {
+    display: none;
+}
+
+.tc-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.tc-id {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+.tc-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0.25rem 0 0.4rem;
+    line-height: 1.4;
+}
+
+.tc-category {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+}
+
+.tc-category i {
+    margin-right: 0.25rem;
+}
+
+/* Priority badges */
+.tc-priority {
+    padding: 0.15rem 0.55rem;
+    border-radius: 0.25rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.priority-high   { background: #fee2e2; color: #dc2626; }
+.priority-medium { background: #fef9c3; color: #ca8a04; }
+.priority-low    { background: #dcfce7; color: #16a34a; }
+
+/* Type badge */
+.tc-type {
+    padding: 0.15rem 0.55rem;
+    border-radius: 0.25rem;
+    font-size: 0.72rem;
+    background: #eff6ff;
+    color: #2563eb;
+    font-weight: 500;
+}
+
+/* Steps */
+.tc-steps {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.tc-steps ol {
+    margin: 0.25rem 0 0 1.25rem;
+    padding: 0;
+}
+
+.tc-steps ol li {
+    margin-bottom: 0.15rem;
+    line-height: 1.4;
+}
+
+/* Expected result */
+.tc-expected {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+/* Count badge in card header */
+.badge {
+    background: var(--primary-color);
+    color: white;
+    border-radius: 1rem;
+    padding: 0.15rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .test-cases-grid {
+        grid-template-columns: 1fr;
+    }
+}
