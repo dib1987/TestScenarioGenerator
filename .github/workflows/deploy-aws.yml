@@ -83,8 +83,7 @@ jobs:
             --region ${{ env.AWS_REGION }} 2>/dev/null \
           || aws s3api create-bucket \
             --bucket ${{ secrets.EB_APP_NAME }}-deployments \
-            --region ${{ env.AWS_REGION }} \
-            --create-bucket-configuration LocationConstraint=${{ env.AWS_REGION }}
+            --region ${{ env.AWS_REGION }}
 
       - name: Upload package to S3
         run: |
