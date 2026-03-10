@@ -104,11 +104,20 @@ jobs:
 
       - name: Verify deployment health
         run: |
-          APP_URL="http://${{ secrets.EB_ENV_NAME }}.${{ env.AWS_REGION }}.elasticbeanstalk.com"
-          echo "Checking health at $APP_URL/health"
-          curl --fail --retry 5 --retry-delay 10 "$APP_URL/health"
+          APP_URL=$(aws elasticbeanstalk describe-environments \
+            --environment-names ${{ secrets.EB_ENV_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Environments[0].CNAME' \
+            --output text)
+          echo "Checking health at http://$APP_URL/health"
+          curl --fail --retry 5 --retry-delay 10 "http://$APP_URL/health"
 
       - name: Print deployment URL
         run: |
+          APP_URL=$(aws elasticbeanstalk describe-environments \
+            --environment-names ${{ secrets.EB_ENV_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Environments[0].CNAME' \
+            --output text)
           echo "Deployment complete!"
-          echo "URL: http://${{ secrets.EB_ENV_NAME }}.${{ env.AWS_REGION }}.elasticbeanstalk.com"
+          echo "URL: http://$APP_URL"
