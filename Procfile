@@ -1,1 +1,1 @@
-web: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+web: PYTHONPATH=/var/app/current gunicorn app:app --bind 0.0.0.0:8000 --workers 2 --timeout 120

@@ -1,5 +1,5 @@
 # Core dependencies
-anthropic>=0.18.0          # Claude AI API
+boto3>=1.34.0              # AWS SDK (Bedrock)
 gitpython>=3.1.40          # Git operations
 PyYAML>=6.0.1              # Configuration files
 python-dotenv>=1.0.0       # Environment variables

@@ -3,28 +3,29 @@ Test Generator Module
 Uses Claude AI to generate comprehensive test scenarios from code changes.
 """
 
-from anthropic import Anthropic
-from typing import Dict, List
-import os
+import boto3
 import json
+import os
+from typing import Dict, List
 
 
 class TestScenarioGenerator:
     """Generates test scenarios using Claude AI."""
 
-    def __init__(self, api_key: str = None, model: str = "claude-sonnet-4-5-20250929"):
+    def __init__(self, model: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"):
         """
         Initialize the Test Scenario Generator.
 
         Args:
-            api_key: Anthropic API key (if not provided, uses ANTHROPIC_API_KEY env var)
-            model: Claude model to use
+            model: Bedrock Claude model ID to use
         """
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        if not self.api_key:
-            raise ValueError("Anthropic API key is required")
-
-        self.client = Anthropic(api_key=self.api_key)
+        self.client = boto3.client(
+            "bedrock-runtime",
+            region_name=os.getenv("AWS_REGION", "us-east-1"),
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
+        )
         self.model = model
 
     def generate_test_scenarios(
@@ -49,21 +50,19 @@ class TestScenarioGenerator:
         # Build the prompt for Claude
         prompt = self._build_prompt(diff_summary, parsed_diff, change_types, pr_context)
 
-        # Call Claude API
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=4096,
-            temperature=0.7,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+        # Call Claude API via Bedrock
+        response = self.client.invoke_model(
+            modelId=self.model,
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 4096,
+                "temperature": 0.7,
+                "messages": [{"role": "user", "content": prompt}]
+            })
         )
 
         # Extract the response
-        test_scenarios = response.content[0].text
+        test_scenarios = json.loads(response["body"].read())["content"][0]["text"]
         return test_scenarios
 
     def _build_prompt(
@@ -179,14 +178,17 @@ Rules:
 - Extract every distinct test case from the scenarios above
 - Return only the JSON array, no markdown formatting, no explanation"""
 
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=4096,
-            temperature=0.3,
-            messages=[{"role": "user", "content": prompt}]
+        response = self.client.invoke_model(
+            modelId=self.model,
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 4096,
+                "temperature": 0.3,
+                "messages": [{"role": "user", "content": prompt}]
+            })
         )
 
-        text = response.content[0].text.strip()
+        text = json.loads(response["body"].read())["content"][0]["text"].strip()
 
         # Strip markdown code fences if Claude wrapped the JSON
         if text.startswith("```"):
@@ -238,16 +240,14 @@ Generate complete, runnable test code with:
 Provide the code in a format ready to copy into a test file.
 """
 
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=4096,
-            temperature=0.5,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+        response = self.client.invoke_model(
+            modelId=self.model,
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 4096,
+                "temperature": 0.5,
+                "messages": [{"role": "user", "content": prompt}]
+            })
         )
 
-        return response.content[0].text
+        return json.loads(response["body"].read())["content"][0]["text"]

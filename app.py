@@ -3,7 +3,7 @@ PR Test Scenario Generator - Web Application
 A web interface for generating test scenarios from pull requests.
 """
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
@@ -28,6 +28,26 @@ CORS(app)
 # Configure app
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request size
+
+
+@app.before_request
+def require_basic_auth():
+    if request.path == '/health':
+        return None  # Health check must stay open for AWS load balancer
+
+    app_username = os.getenv('APP_USERNAME', '')
+    app_password = os.getenv('APP_PASSWORD', '')
+
+    if not app_username or not app_password:
+        return None  # Auth disabled if env vars not set
+
+    auth = request.authorization
+    if not auth or auth.username != app_username or auth.password != app_password:
+        return Response(
+            'Authentication required.',
+            401,
+            {'WWW-Authenticate': 'Basic realm="PR Test Generator"'}
+        )
 
 
 @app.route('/')
@@ -126,15 +146,15 @@ def analyze_pr():
             )
         except Exception as e:
             error_msg = str(e)
-            if 'credit balance' in error_msg.lower():
+            if 'throttlingexception' in error_msg.lower() or 'toomanyrequests' in error_msg.lower():
                 return jsonify({
                     'success': False,
-                    'error': 'Anthropic API credits exhausted. Please add credits at console.anthropic.com'
-                }), 402
-            elif 'invalid_request_error' in error_msg:
+                    'error': 'AWS Bedrock request throttled. Please retry after a moment.'
+                }), 429
+            elif 'accessdeniedexception' in error_msg.lower() or 'is not authorized' in error_msg.lower():
                 return jsonify({
                     'success': False,
-                    'error': 'Invalid API request. Check your Anthropic API key'
+                    'error': 'AWS credentials invalid or lack Bedrock access. Check AWS_ACCESS_KEY_ID and permissions.'
                 }), 401
             else:
                 return jsonify({
