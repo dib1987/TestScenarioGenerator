@@ -734,3 +734,174 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================================================
+   Jira Badge
+   ============================================================ */
+.jira-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 2rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: white;
+    cursor: default;
+    margin-left: 0.75rem;
+}
+.jira-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.jira-dot-connected    { background: #00C851; }
+.jira-dot-disconnected { background: #FF4444; }
+
+/* ============================================================
+   Excel Upload
+   ============================================================ */
+.upload-section { margin-top: 1rem; }
+
+.optional-tag {
+    background: var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 1rem;
+    padding: 0.1rem 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+}
+
+.upload-drop-zone {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+.upload-drop-zone:hover, .upload-drop-zone.drag-over {
+    border-color: var(--primary-color);
+    background: #f5f3ff;
+}
+.upload-icon { font-size: 1.75rem; color: var(--primary-light); display: block; margin-bottom: 0.4rem; }
+.upload-hint { display: block; font-size: 0.75rem; margin-top: 0.3rem; opacity: 0.7; }
+.upload-browse { color: var(--primary-color); cursor: pointer; }
+
+.upload-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: var(--radius-md);
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+    color: #166534;
+}
+.btn-remove-file {
+    margin-left: auto;
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    color: #dc2626;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 0.2rem;
+}
+.btn-remove-file:hover { color: #991b1b; }
+
+/* ============================================================
+   Mapping Card — Stats Bar
+   ============================================================ */
+.mapping-stats {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+.mapping-stat-item {
+    flex: 1;
+    min-width: 100px;
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1rem;
+    text-align: center;
+}
+.mapping-stat-count { display: block; font-size: 1.75rem; font-weight: 700; line-height: 1; }
+.mapping-stat-label { display: block; font-size: 0.78rem; font-weight: 600; margin-top: 0.2rem; opacity: 0.85; }
+
+/* Status colour classes */
+.status-mapped       { background: #d1fae5; color: #065f46; }
+.status-possible     { background: #fef3c7; color: #92400e; }
+.status-notcovered   { background: #fee2e2; color: #991b1b; }
+.status-new          { background: #dbeafe; color: #1e40af; }
+
+/* ============================================================
+   Mapping Table
+   ============================================================ */
+.mapping-table-wrap { overflow-x: auto; margin-top: 1rem; }
+
+.mapping-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+.mapping-table th, .mapping-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: middle;
+}
+.mapping-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.mapping-table tr:hover td { background: #fafafa; }
+
+.status-badge {
+    display: inline-block;
+    border-radius: 1rem;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.tc-ref {
+    display: inline-block;
+    background: var(--primary-color);
+    color: white;
+    border-radius: var(--radius-sm);
+    padding: 0.1rem 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.25rem;
+}
+
+/* Confidence bar */
+.conf-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 100px;
+}
+.conf-bar {
+    height: 6px;
+    background: var(--primary-light);
+    border-radius: 3px;
+    flex-shrink: 0;
+    max-width: 80px;
+    min-width: 0;
+    transition: width 0.3s;
+}
+.conf-bar-wrap span { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }

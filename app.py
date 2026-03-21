@@ -3,17 +3,24 @@ PR Test Scenario Generator - Web Application
 A web interface for generating test scenarios from pull requests.
 """
 
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, send_file
 from flask_cors import CORS
+import io
+import json
 import os
 from dotenv import load_dotenv
 import traceback
 import markdown
 from datetime import datetime
 
+import boto3
+
 from src.git_analyzer import GitHubPRAnalyzer, GitAnalyzer
 from src.code_analyzer import CodeAnalyzer
 from src.test_generator import TestScenarioGenerator
+from src.excel_processor import ExcelProcessor, ExcelParseError
+from src.excel_mapper import ExcelMapper
+from src.jira_client import ZephyrScaleClient
 
 # Load environment variables
 # Get the directory of this file
@@ -27,7 +34,16 @@ CORS(app)
 
 # Configure app
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request size
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32MB max request size (Excel uploads)
+
+# Shared Bedrock client — initialised once, reused across requests
+_bedrock_client = boto3.client(
+    "bedrock-runtime",
+    region_name=os.getenv("AWS_REGION", "us-east-1"),
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
+)
 
 
 @app.before_request
@@ -341,6 +357,120 @@ def health():
         'status': 'healthy',
         'timestamp': datetime.now().isoformat()
     })
+
+
+@app.route('/api/map-excel', methods=['POST'])
+def map_excel():
+    """
+    Map generated test cases against an uploaded Excel test case file.
+
+    Expected multipart/form-data:
+        excel_file          – .xlsx / .xls file upload
+        structured_test_cases – JSON string (array from /api/analyze-pr or /api/analyze-diff)
+    """
+    try:
+        # Validate inputs
+        if 'excel_file' not in request.files:
+            return jsonify({'success': False, 'error': 'No Excel file uploaded.'}), 400
+
+        file = request.files['excel_file']
+        if not file.filename or not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'error': 'File must be an Excel file (.xlsx or .xls).'}), 400
+
+        raw_cases = request.form.get('structured_test_cases', '[]')
+        try:
+            generated_cases = json.loads(raw_cases)
+            if not isinstance(generated_cases, list):
+                raise ValueError("structured_test_cases must be a JSON array")
+        except (json.JSONDecodeError, ValueError) as exc:
+            return jsonify({'success': False, 'error': f'Invalid structured_test_cases: {exc}'}), 400
+
+        # Parse Excel
+        try:
+            file_bytes = file.read()
+            excel_rows = ExcelProcessor.parse(file_bytes)
+        except ExcelParseError as exc:
+            return jsonify({'success': False, 'error': str(exc)}), 422
+
+        # Run AI mapping
+        mapper = ExcelMapper(_bedrock_client)
+        result = mapper.map(excel_rows, generated_cases)
+
+        # Build new_generated list (full TC objects for the NEW rows)
+        generated_by_id = {tc.get('id', ''): tc for tc in generated_cases}
+        new_generated = [generated_by_id[tc_id] for tc_id in result.new_generated_ids if tc_id in generated_by_id]
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'mappings': result.mappings,
+                'new_generated': new_generated,
+                'stats': result.stats,
+            }
+        })
+
+    except Exception as exc:
+        app.logger.error("map_excel error: %s", traceback.format_exc())
+        return jsonify({'success': False, 'error': f'Mapping error: {str(exc)}'}), 500
+
+
+@app.route('/api/download-mapped-excel', methods=['POST'])
+def download_mapped_excel():
+    """
+    Produce a colour-coded Excel workbook with mapping results.
+
+    Expected multipart/form-data:
+        excel_file      – original .xlsx / .xls upload
+        mapping_result  – JSON string: { mappings, new_generated, stats }
+    """
+    try:
+        if 'excel_file' not in request.files:
+            return jsonify({'success': False, 'error': 'No Excel file provided.'}), 400
+
+        file = request.files['excel_file']
+        file_bytes = file.read()
+
+        mapping_json = request.form.get('mapping_result', '{}')
+        try:
+            mapping_data = json.loads(mapping_json)
+        except json.JSONDecodeError as exc:
+            return jsonify({'success': False, 'error': f'Invalid mapping_result JSON: {exc}'}), 400
+
+        mappings = mapping_data.get('mappings', [])
+        new_generated = mapping_data.get('new_generated', [])
+
+        # Re-parse excel rows to pass to build_output
+        try:
+            excel_rows = ExcelProcessor.parse(file_bytes)
+        except ExcelParseError as exc:
+            return jsonify({'success': False, 'error': str(exc)}), 422
+
+        output_bytes = ExcelProcessor.build_output(file_bytes, excel_rows, mappings, new_generated)
+
+        filename = f"mapped_test_cases_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return send_file(
+            io.BytesIO(output_bytes),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+        )
+
+    except Exception as exc:
+        app.logger.error("download_mapped_excel error: %s", traceback.format_exc())
+        return jsonify({'success': False, 'error': f'Download error: {str(exc)}'}), 500
+
+
+@app.route('/api/jira/health', methods=['GET'])
+def jira_health():
+    """
+    Check Jira / Zephyr Scale connectivity.
+    Returns { enabled: false } when JIRA_BASE_URL is not configured.
+    """
+    client = ZephyrScaleClient.from_env()
+    if client is None:
+        return jsonify({'enabled': False, 'connected': False})
+    connected = client.health_check()
+    return jsonify({'enabled': True, 'connected': connected})
 
 
 if __name__ == '__main__':

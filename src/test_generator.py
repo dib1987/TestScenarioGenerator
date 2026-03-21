@@ -121,24 +121,25 @@ class TestScenarioGenerator:
         prompt += """
 
 ## Your Task
-Generate comprehensive test scenarios for these code changes. Include:
+Generate comprehensive test scenarios for these code changes. Include only these three test types:
 
-1. **Unit Tests**: Test individual functions/methods
-2. **Integration Tests**: Test how components work together
-3. **Edge Cases**: Boundary conditions and error scenarios
-4. **Regression Tests**: Ensure existing functionality still works
-5. **Security Tests**: Check for potential security issues (if applicable)
-6. **Performance Tests**: Check for performance implications (if applicable)
+1. **Functional Tests**: Verify that each changed feature or behaviour works as expected from a user perspective
+2. **Regression Tests**: Ensure existing functionality that could be affected by these changes still works correctly
+3. **End-to-End (E2E) Tests**: Validate complete user journeys and workflows that touch the changed areas
 
 For each test scenario, provide:
-- **Test Name**: Clear, descriptive name
-- **Test Type**: Unit/Integration/E2E/etc.
-- **Objective**: What this test verifies
-- **Steps**: How to execute the test
-- **Expected Result**: What should happen
+- **Test Name**: Clear, descriptive name a business stakeholder can understand
+- **Test Type**: Functional / Regression / E2E
+- **Objective**: What business behaviour this test verifies
+- **Steps**: Written in plain business language — describe what a user does or what the system does, NOT how it is implemented. Do NOT reference method names, function calls, class names, API endpoints, database queries, or any code-level detail.
+- **Expected Result**: What the user or system should observe when the test passes
 - **Priority**: High/Medium/Low
 
-Format your response as a structured test plan that a QA engineer can follow.
+IMPORTANT for Steps: Each step must be understandable by a non-technical QA engineer or business analyst.
+Good example: "Navigate to the checkout page and enter valid payment details, then confirm the order."
+Bad example: "Call `PaymentService.processPayment()` with a valid PaymentDTO object."
+
+Format your response as a structured test plan that a QA engineer and business team can follow.
 """
 
         return prompt
@@ -163,18 +164,21 @@ Return ONLY a valid JSON array with no other text. Each element must follow this
   {{
     "id": "TC-001",
     "title": "Short descriptive title (max 10 words)",
-    "type": "unit",
+    "type": "functional",
     "priority": "high",
-    "category": "Category name (e.g. Authentication, API, Database, UI)",
+    "category": "Category name (e.g. Authentication, Checkout, User Profile, Notifications)",
     "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
     "expected_result": "What should happen when the test passes"
   }}
 ]
 
 Rules:
-- "type" must be one of: unit, integration, e2e, security, performance
+- "type" must be one of: functional, regression, e2e
 - "priority" must be one of: high, medium, low
 - "steps" must be a list of strings (at least 2 steps per test case)
+- CRITICAL for "steps": Write every step in plain business language that a non-technical QA engineer or business analyst can understand and execute. Do NOT mention method names, function calls, class names, API routes, database tables, or any code-level implementation detail. Describe what a user does or what the system does from a user perspective.
+  Good step: "Open the account settings page and update the email address to a new valid address, then save the changes."
+  Bad step: "Call UserService.updateEmail() with a valid email string and assert HTTP 200."
 - Extract every distinct test case from the scenarios above
 - Return only the JSON array, no markdown formatting, no explanation"""
 

@@ -15,6 +15,11 @@
             <div class="logo">
                 <i class="fas fa-flask"></i>
                 <h1>PR Test Scenario Generator</h1>
+                <div class="jira-badge hidden" id="jiraBadge" title="Jira + Zephyr Scale">
+                    <i class="fab fa-jira"></i>
+                    <span id="jiraBadgeText">Jira</span>
+                    <span class="jira-dot" id="jiraDot"></span>
+                </div>
             </div>
             <p class="subtitle">Automatically generate comprehensive test scenarios from your pull requests using AI</p>
         </header>
@@ -77,6 +82,26 @@
                                 </div>
                             </div>
 
+                            <!-- Excel Upload (optional) -->
+                            <div class="form-group upload-section">
+                                <label>
+                                    <i class="fas fa-file-excel" style="color:#1d6f42"></i>
+                                    Existing Test Cases <span class="optional-tag">Optional</span>
+                                </label>
+                                <div class="upload-drop-zone" id="uploadZone">
+                                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                    <span>Drop your Excel file here or <u class="upload-browse">browse</u></span>
+                                    <small class="upload-hint">Supported: .xlsx, .xls &mdash; columns: Test Case, Description, Test Scenario, Precondition, Test Steps, Expected Result</small>
+                                    <input type="file" id="excelFile" accept=".xlsx,.xls" hidden>
+                                </div>
+                                <div class="upload-preview hidden" id="uploadPreview">
+                                    <i class="fas fa-file-excel" style="color:#1d6f42"></i>
+                                    <span id="uploadFileName"></span>
+                                    <button type="button" class="btn-remove-file" id="removeFile" title="Remove file">&times;</button>
+                                </div>
+                                <small class="form-help">Upload your existing test case Excel to map AI-generated scenarios against current coverage</small>
+                            </div>
+
                             <!-- Options -->
                             <div class="form-group">
                                 <label class="checkbox-label">
@@ -114,6 +139,10 @@
                             <div class="step" id="step3">
                                 <i class="fas fa-robot"></i>
                                 <span>Generating Tests</span>
+                            </div>
+                            <div class="step hidden" id="step4">
+                                <i class="fas fa-file-excel"></i>
+                                <span>Mapping Excel</span>
                             </div>
                         </div>
                     </div>
@@ -228,13 +257,54 @@
                         <button class="filter-btn" data-filter="high">High Priority</button>
                         <button class="filter-btn" data-filter="medium">Medium</button>
                         <button class="filter-btn" data-filter="low">Low</button>
-                        <button class="filter-btn" data-filter="unit">Unit</button>
-                        <button class="filter-btn" data-filter="integration">Integration</button>
+                        <button class="filter-btn" data-filter="functional">Functional</button>
+                        <button class="filter-btn" data-filter="regression">Regression</button>
                         <button class="filter-btn" data-filter="e2e">E2E</button>
                     </div>
                     <div class="card-body">
                         <div class="test-cases-grid" id="testCasesGrid">
                             <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coverage Mapping Card (shown only when Excel was uploaded) -->
+                <div class="card hidden" id="mappingCard">
+                    <div class="card-header">
+                        <i class="fas fa-map-marked-alt"></i>
+                        <h2>Coverage Mapping</h2>
+                        <span class="badge" id="mappingBadge"></span>
+                        <div class="card-actions">
+                            <button class="btn btn-secondary btn-sm" id="downloadMappedExcelBtn">
+                                <i class="fas fa-file-excel" style="color:#1d6f42"></i> Download Mapped Excel
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Stats bar -->
+                        <div class="mapping-stats" id="mappingStats"></div>
+                        <!-- Filter row -->
+                        <div class="test-cases-filters" id="mappingFilters">
+                            <button class="filter-btn active" data-mfilter="all">All</button>
+                            <button class="filter-btn" data-mfilter="MAPPED">Mapped</button>
+                            <button class="filter-btn" data-mfilter="POSSIBLE MATCH">Possible Match</button>
+                            <button class="filter-btn" data-mfilter="NOT COVERED">Not Covered</button>
+                            <button class="filter-btn" data-mfilter="NEW">New</button>
+                        </div>
+                        <!-- Mapping table -->
+                        <div class="mapping-table-wrap" id="mappingTableWrap">
+                            <table class="mapping-table" id="mappingTable">
+                                <thead>
+                                    <tr>
+                                        <th>Existing TC</th>
+                                        <th>Status</th>
+                                        <th>Generated TC</th>
+                                        <th>Confidence</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mappingTableBody"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
