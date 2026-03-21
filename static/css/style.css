@@ -839,7 +839,7 @@ body {
 /* Status colour classes */
 .status-mapped       { background: #d1fae5; color: #065f46; }
 .status-possible     { background: #fef3c7; color: #92400e; }
-.status-notcovered   { background: #fee2e2; color: #991b1b; }
+.status-notimpacted  { background: #f3f4f6; color: #374151; }
 .status-new          { background: #dbeafe; color: #1e40af; }
 
 /* ============================================================

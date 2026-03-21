@@ -7,7 +7,7 @@ const VALID_PRIORITIES = ['high', 'medium', 'low'];
 const STATUS_CLASSES = {
     'MAPPED':         'status-mapped',
     'POSSIBLE MATCH': 'status-possible',
-    'NOT COVERED':    'status-notcovered',
+    'NOT IMPACTED':   'status-notimpacted',
     'NEW':            'status-new',
 };
 
@@ -357,9 +357,9 @@ function renderMappingResults(mappingData, generatedCases) {
             <span class="mapping-stat-count">${stats.possible_match || 0}</span>
             <span class="mapping-stat-label">Possible Match</span>
         </div>
-        <div class="mapping-stat-item status-notcovered">
+        <div class="mapping-stat-item status-notimpacted">
             <span class="mapping-stat-count">${stats.not_covered || 0}</span>
-            <span class="mapping-stat-label">Not Covered</span>
+            <span class="mapping-stat-label">Not Impacted</span>
         </div>
         <div class="mapping-stat-item status-new">
             <span class="mapping-stat-count">${stats.new_generated || 0}</span>

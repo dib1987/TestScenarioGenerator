@@ -32,7 +32,7 @@ COLUMN_ALIASES: Dict[str, List[str]] = {
 STATUS_FILLS = {
     "MAPPED":         PatternFill(start_color="C8F7C5", end_color="C8F7C5", fill_type="solid"),  # soft green
     "POSSIBLE MATCH": PatternFill(start_color="FFF3CD", end_color="FFF3CD", fill_type="solid"),  # amber
-    "NOT COVERED":    PatternFill(start_color="FADADD", end_color="FADADD", fill_type="solid"),  # soft red
+    "NOT IMPACTED":   PatternFill(start_color="E8E8E8", end_color="E8E8E8", fill_type="solid"),  # neutral grey
     "NEW":            PatternFill(start_color="D6EAF8", end_color="D6EAF8", fill_type="solid"),  # soft blue
 }
 
@@ -191,8 +191,8 @@ class ExcelProcessor:
         for excel_row in excel_rows:
             row_index = excel_row["row_index"]
             mapping = mapping_by_row.get(row_index, {})
-            status = mapping.get("status", "NOT COVERED")
-            fill = STATUS_FILLS.get(status, STATUS_FILLS["NOT COVERED"])
+            status = mapping.get("status", "NOT IMPACTED")
+            fill = STATUS_FILLS.get(status, STATUS_FILLS["NOT IMPACTED"])
 
             # Colour entire row
             for col in range(1, ws.max_column + 1):

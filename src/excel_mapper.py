@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # Confidence thresholds
 THRESHOLD_MAPPED = 75          # ≥ 75% → MAPPED
 THRESHOLD_POSSIBLE = 40        # 40–74% → POSSIBLE MATCH
-                                # < 40% or no match → NOT COVERED
+                                # < 40% or no match → NOT IMPACTED
 
 
 @dataclass
@@ -29,7 +29,7 @@ class MappingResult:
         raw_id: str,                 # display identifier from Excel (TC ID or row num)
         generated_tc_id: str|None,   # best matching generated TC id, or None
         generated_title: str|None,   # title of that TC for display
-        status: str,                 # MAPPED | POSSIBLE MATCH | NOT COVERED
+        status: str,                 # MAPPED | POSSIBLE MATCH | NOT IMPACTED
         confidence: int,             # 0–100
         notes: str,                  # explanation from AI
     }
@@ -231,7 +231,7 @@ Return ONLY valid JSON — no markdown fences, no explanation. Schema:
             elif tc_id and confidence >= THRESHOLD_POSSIBLE:
                 status = "POSSIBLE MATCH"
             else:
-                status = "NOT COVERED"
+                status = "NOT IMPACTED"
                 tc_id = None  # don't show a TC id for unconfident matches
 
             tc = generated_by_id.get(tc_id or "") if tc_id else None
@@ -253,14 +253,14 @@ Return ONLY valid JSON — no markdown fences, no explanation. Schema:
         new_generated_ids = sorted(all_generated_ids - matched_tc_ids)
 
         # Stats
-        status_counts = {"MAPPED": 0, "POSSIBLE MATCH": 0, "NOT COVERED": 0}
+        status_counts = {"MAPPED": 0, "POSSIBLE MATCH": 0, "NOT IMPACTED": 0}
         for m in mappings:
             status_counts[m["status"]] = status_counts.get(m["status"], 0) + 1
 
         stats = {
             "mapped": status_counts["MAPPED"],
             "possible_match": status_counts["POSSIBLE MATCH"],
-            "not_covered": status_counts["NOT COVERED"],
+            "not_covered": status_counts["NOT IMPACTED"],
             "new_generated": len(new_generated_ids),
             "total_excel": len(excel_rows),
             "total_generated": len(generated_cases),
@@ -279,7 +279,7 @@ Return ONLY valid JSON — no markdown fences, no explanation. Schema:
                 "raw_id": row.get("_raw_id", str(row["row_index"])),
                 "generated_tc_id": None,
                 "generated_title": "",
-                "status": "NOT COVERED",
+                "status": "NOT IMPACTED",
                 "confidence": 0,
                 "notes": "No generated test cases to map against.",
             }
