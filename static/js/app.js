@@ -1,12 +1,9 @@
 // ============================================================
-// PR Test Scenario Generator — Frontend Logic
+// Test Scenario & Coverage Generator — Frontend Logic
 // ============================================================
 
-// Test case field constants
 const VALID_PRIORITIES = ['high', 'medium', 'low'];
-const VALID_TYPES = ['functional', 'regression', 'e2e'];
 
-// Mapping status colours (must match CSS classes)
 const STATUS_CLASSES = {
     'MAPPED':         'status-mapped',
     'POSSIBLE MATCH': 'status-possible',
@@ -15,8 +12,8 @@ const STATUS_CLASSES = {
 };
 
 // Module-level state
-let uploadedExcelFile = null;       // File object from input
-let currentMappingResult = null;    // Last mapping response data
+let uploadedExcelFile = null;
+let currentMappingResult = null;
 
 // DOM references
 const prForm = document.getElementById('prForm');
@@ -40,7 +37,7 @@ const errorSection = document.getElementById('errorSection');
                 : 'jira-dot jira-dot-disconnected';
             document.getElementById('jiraBadgeText').textContent = data.connected ? 'Jira Connected' : 'Jira Error';
         }
-    } catch (_) { /* Jira badge is purely informational — ignore errors */ }
+    } catch (_) {}
 })();
 
 // ============================================================
@@ -48,55 +45,40 @@ const errorSection = document.getElementById('errorSection');
 // ============================================================
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        const tabId = btn.dataset.tab;
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        document.getElementById(tabId).classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
     });
 });
 
 // ============================================================
-// Excel file upload — drag-and-drop + click-to-browse
+// Excel file upload
 // ============================================================
 const uploadZone = document.getElementById('uploadZone');
 const excelFileInput = document.getElementById('excelFile');
 const uploadPreview = document.getElementById('uploadPreview');
 const uploadFileName = document.getElementById('uploadFileName');
-const removeFileBtn = document.getElementById('removeFile');
 
 uploadZone.addEventListener('click', () => excelFileInput.click());
-uploadZone.querySelector('.upload-browse').addEventListener('click', (e) => {
-    e.stopPropagation();
-    excelFileInput.click();
-});
+uploadZone.querySelector('.upload-browse').addEventListener('click', e => { e.stopPropagation(); excelFileInput.click(); });
 
-uploadZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    uploadZone.classList.add('drag-over');
-});
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
 uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-uploadZone.addEventListener('drop', (e) => {
+uploadZone.addEventListener('drop', e => {
     e.preventDefault();
     uploadZone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) setExcelFile(file);
+    if (e.dataTransfer.files[0]) setExcelFile(e.dataTransfer.files[0]);
 });
 
 excelFileInput.addEventListener('change', () => {
     if (excelFileInput.files[0]) setExcelFile(excelFileInput.files[0]);
 });
 
-removeFileBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    clearExcelFile();
-});
+document.getElementById('removeFile').addEventListener('click', e => { e.stopPropagation(); clearExcelFile(); });
 
 function setExcelFile(file) {
-    if (!file.name.match(/\.(xlsx|xls)$/i)) {
-        showError('Please upload an Excel file (.xlsx or .xls)');
-        return;
-    }
+    if (!file.name.match(/\.(xlsx|xls)$/i)) { showError('Please upload an Excel file (.xlsx or .xls)'); return; }
     uploadedExcelFile = file;
     uploadFileName.textContent = file.name;
     uploadZone.classList.add('hidden');
@@ -113,9 +95,8 @@ function clearExcelFile() {
 // ============================================================
 // Form submission
 // ============================================================
-prForm.addEventListener('submit', async (e) => {
+prForm.addEventListener('submit', async e => {
     e.preventDefault();
-
     const activeTab = document.querySelector('.tab-btn.active').dataset.tab;
     const generateCode = document.getElementById('generateCode').checked;
 
@@ -137,24 +118,21 @@ async function analyzePR(prUrl, generateCode) {
     showLoading();
     try {
         updateLoadingStep(1, 'Fetching PR data from GitHub...');
-
         const response = await fetch('/api/analyze-pr', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pr_url: prUrl, generate_code: generateCode })
+            body: JSON.stringify({ pr_url: prUrl, generate_code: generateCode }),
         });
-
         const result = await response.json();
         if (!result.success) { showError(result.error || 'An error occurred'); return; }
 
-        updateLoadingStep(2, 'Analyzing code changes...');
-        await sleep(300);
-        updateLoadingStep(3, 'Generating test scenarios with AI...');
-        await sleep(300);
+        updateLoadingStep(2, 'Analysing code changes...');
+        await sleep(200);
+        updateLoadingStep(3, 'Generating structured test cases with AI...');
+        await sleep(200);
 
         await runMappingIfNeeded(result.data);
         showResults(result.data, true);
-
     } catch (error) {
         showError(`Network error: ${error.message}`);
     }
@@ -166,30 +144,27 @@ async function analyzePR(prUrl, generateCode) {
 async function analyzeDiff(diffText, generateCode) {
     showLoading();
     try {
-        updateLoadingStep(2, 'Analyzing code changes...');
-
+        updateLoadingStep(2, 'Analysing code changes...');
         const response = await fetch('/api/analyze-diff', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ diff_text: diffText, generate_code: generateCode })
+            body: JSON.stringify({ diff_text: diffText, generate_code: generateCode }),
         });
-
         const result = await response.json();
         if (!result.success) { showError(result.error || 'An error occurred'); return; }
 
-        updateLoadingStep(3, 'Generating test scenarios with AI...');
-        await sleep(300);
+        updateLoadingStep(3, 'Generating structured test cases with AI...');
+        await sleep(200);
 
         await runMappingIfNeeded(result.data);
         showResults(result.data, false);
-
     } catch (error) {
         showError(`Network error: ${error.message}`);
     }
 }
 
 // ============================================================
-// Mapping — called after analysis if Excel was uploaded
+// Excel mapping (chained after analysis)
 // ============================================================
 async function runMappingIfNeeded(analysisData) {
     if (!uploadedExcelFile) return;
@@ -205,13 +180,8 @@ async function runMappingIfNeeded(analysisData) {
 
         const res = await fetch('/api/map-excel', { method: 'POST', body: formData });
         const result = await res.json();
-
         if (result.success) {
-            // Attach mapping data to analysisData for showResults to pick up
             analysisData._mappingResult = result.data;
-        } else {
-            console.warn('Mapping failed:', result.error);
-            // Non-fatal — continue showing analysis results without mapping
         }
     } catch (err) {
         console.warn('Mapping request failed:', err.message);
@@ -219,23 +189,21 @@ async function runMappingIfNeeded(analysisData) {
 }
 
 // ============================================================
-// Show loading state
+// Loading state
 // ============================================================
 function showLoading() {
     inputSection.classList.add('hidden');
     resultsSection.classList.add('hidden');
     errorSection.classList.add('hidden');
     loadingSection.classList.remove('hidden');
-
-    // Hide step4 until needed
     document.getElementById('step4').classList.add('hidden');
     document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
 }
 
 function updateLoadingStep(stepNum, text) {
     document.getElementById('loadingText').textContent = text;
-    const stepEl = document.getElementById(`step${stepNum}`);
-    if (stepEl) stepEl.classList.add('active');
+    const el = document.getElementById(`step${stepNum}`);
+    if (el) el.classList.add('active');
 }
 
 // ============================================================
@@ -285,21 +253,14 @@ function showResults(data, isPR = true) {
         });
     }
 
-    // Test scenarios (HTML)
-    document.getElementById('testScenarios').innerHTML = data.test_scenarios_html || data.test_scenarios;
-    window.currentTestScenarios = data.test_scenarios;
-
     // Structured test cases
     const testCasesCard = document.getElementById('testCasesCard');
-    const downloadScenariosCsvBtn = document.getElementById('downloadScenariosCsvBtn');
     if (data.structured_test_cases && data.structured_test_cases.length > 0) {
         window.currentTestCases = data.structured_test_cases;
         populateTestCases(data.structured_test_cases);
         testCasesCard.classList.remove('hidden');
-        downloadScenariosCsvBtn.classList.remove('hidden');
     } else {
         testCasesCard.classList.add('hidden');
-        downloadScenariosCsvBtn.classList.add('hidden');
     }
 
     // Coverage mapping
@@ -327,7 +288,7 @@ function showResults(data, isPR = true) {
 }
 
 // ============================================================
-// Populate structured test cases grid
+// Structured test cases grid
 // ============================================================
 function populateTestCases(cases) {
     const grid = document.getElementById('testCasesGrid');
@@ -361,14 +322,12 @@ function populateTestCases(cases) {
         grid.appendChild(card);
     });
 
-    // Reset filter to "All"
     document.querySelectorAll('#testCasesFilters .filter-btn').forEach(b => b.classList.remove('active'));
     const allBtn = document.querySelector('#testCasesFilters .filter-btn[data-filter="all"]');
     if (allBtn) allBtn.classList.add('active');
 }
 
-// Filter: test cases
-document.getElementById('testCasesFilters').addEventListener('click', (e) => {
+document.getElementById('testCasesFilters').addEventListener('click', e => {
     const btn = e.target.closest('.filter-btn');
     if (!btn || !btn.dataset.filter) return;
 
@@ -377,25 +336,19 @@ document.getElementById('testCasesFilters').addEventListener('click', (e) => {
 
     const filter = btn.dataset.filter;
     document.querySelectorAll('.test-case-card').forEach(card => {
-        if (filter === 'all') {
-            card.classList.remove('hidden');
-        } else if (VALID_PRIORITIES.includes(filter)) {
-            card.classList.toggle('hidden', card.dataset.priority !== filter);
-        } else {
-            card.classList.toggle('hidden', card.dataset.type !== filter);
-        }
+        if (filter === 'all') card.classList.remove('hidden');
+        else if (VALID_PRIORITIES.includes(filter)) card.classList.toggle('hidden', card.dataset.priority !== filter);
+        else card.classList.toggle('hidden', card.dataset.type !== filter);
     });
 });
 
 // ============================================================
-// Render mapping results
+// Coverage mapping table
 // ============================================================
 function renderMappingResults(mappingData, generatedCases) {
     const { mappings = [], new_generated = [], stats = {} } = mappingData;
 
-    // Stats bar
-    const statsEl = document.getElementById('mappingStats');
-    statsEl.innerHTML = `
+    document.getElementById('mappingStats').innerHTML = `
         <div class="mapping-stat-item status-mapped">
             <span class="mapping-stat-count">${stats.mapped || 0}</span>
             <span class="mapping-stat-label">Mapped</span>
@@ -416,14 +369,9 @@ function renderMappingResults(mappingData, generatedCases) {
     document.getElementById('mappingBadge').textContent =
         `${stats.total_excel || 0} existing · ${stats.total_generated || 0} generated`;
 
-    // Build a quick lookup for generated TC titles
-    const generatedById = {};
-    generatedCases.forEach(tc => { if (tc.id) generatedById[tc.id] = tc; });
-
     const tbody = document.getElementById('mappingTableBody');
     tbody.innerHTML = '';
 
-    // Existing rows
     mappings.forEach(m => {
         const tr = document.createElement('tr');
         tr.dataset.mstatus = m.status;
@@ -434,15 +382,12 @@ function renderMappingResults(mappingData, generatedCases) {
         tr.innerHTML = `
             <td>${escapeHtml(m.raw_id || String(m.excel_row_index))}</td>
             <td><span class="status-badge ${statusClass}">${escapeHtml(m.status)}</span></td>
-            <td>${m.generated_tc_id
-                ? `<span class="tc-ref">${escapeHtml(m.generated_tc_id)}</span> ${escapeHtml(m.generated_title || '')}`
-                : '—'}</td>
+            <td>${m.generated_tc_id ? `<span class="tc-ref">${escapeHtml(m.generated_tc_id)}</span> ${escapeHtml(m.generated_title || '')}` : '—'}</td>
             <td>${confBar}</td>
             <td>${escapeHtml(m.notes || '')}</td>`;
         tbody.appendChild(tr);
     });
 
-    // NEW generated rows
     new_generated.forEach(tc => {
         const tr = document.createElement('tr');
         tr.dataset.mstatus = 'NEW';
@@ -455,14 +400,12 @@ function renderMappingResults(mappingData, generatedCases) {
         tbody.appendChild(tr);
     });
 
-    // Reset mapping filter
     document.querySelectorAll('#mappingFilters .filter-btn').forEach(b => b.classList.remove('active'));
-    const allMBtn = document.querySelector('#mappingFilters .filter-btn[data-mfilter="all"]');
-    if (allMBtn) allMBtn.classList.add('active');
+    const allBtn = document.querySelector('#mappingFilters .filter-btn[data-mfilter="all"]');
+    if (allBtn) allBtn.classList.add('active');
 }
 
-// Filter: mapping table
-document.getElementById('mappingFilters').addEventListener('click', (e) => {
+document.getElementById('mappingFilters').addEventListener('click', e => {
     const btn = e.target.closest('.filter-btn');
     if (!btn || !btn.dataset.mfilter) return;
 
@@ -475,69 +418,65 @@ document.getElementById('mappingFilters').addEventListener('click', (e) => {
     });
 });
 
-// Download mapped Excel
+// ============================================================
+// Downloads
+// ============================================================
+
+// Structured test cases → Excel
+document.getElementById('downloadCasesBtn').addEventListener('click', async () => {
+    if (!window.currentTestCases || !window.currentTestCases.length) return;
+
+    const btn = document.getElementById('downloadCasesBtn');
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/download-test-cases-excel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ test_cases: window.currentTestCases }),
+        });
+        if (!res.ok) throw new Error('Download failed');
+        const blob = await res.blob();
+        triggerDownload(blob, `test_cases_${Date.now()}.xlsx`);
+    } catch (err) {
+        alert(`Download failed: ${err.message}`);
+    } finally {
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+    }
+});
+
+// Mapped Excel download
 document.getElementById('downloadMappedExcelBtn').addEventListener('click', async () => {
     if (!uploadedExcelFile || !currentMappingResult) return;
 
-    try {
-        const btn = document.getElementById('downloadMappedExcelBtn');
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
-        btn.disabled = true;
+    const btn = document.getElementById('downloadMappedExcelBtn');
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+    btn.disabled = true;
 
+    try {
         const formData = new FormData();
         formData.append('excel_file', uploadedExcelFile, uploadedExcelFile.name);
         formData.append('mapping_result', JSON.stringify(currentMappingResult));
 
         const res = await fetch('/api/download-mapped-excel', { method: 'POST', body: formData });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Download failed');
-        }
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `mapped_test_cases_${Date.now()}.xlsx`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Download failed'); }
+        triggerDownload(await res.blob(), `mapped_test_cases_${Date.now()}.xlsx`);
     } catch (err) {
         alert(`Download failed: ${err.message}`);
     } finally {
-        const btn = document.getElementById('downloadMappedExcelBtn');
-        btn.innerHTML = '<i class="fas fa-file-excel" style="color:#1d6f42"></i> Download Mapped Excel';
+        btn.innerHTML = origHtml;
         btn.disabled = false;
     }
 });
 
-// ============================================================
-// Download / copy buttons
-// ============================================================
-document.getElementById('downloadMdBtn').addEventListener('click', () => {
-    if (!window.currentTestScenarios) return;
-    downloadBlob(window.currentTestScenarios, 'text/markdown', `test-scenarios-${Date.now()}.md`);
-});
-
-document.getElementById('downloadScenariosCsvBtn').addEventListener('click', () => {
-    if (!window.currentTestCases || !window.currentTestCases.length) return;
-    downloadBlob(buildTestCasesCsv(window.currentTestCases), 'text/csv', `test-scenarios-${Date.now()}.csv`);
-});
-
-document.getElementById('downloadCasesBtn').addEventListener('click', () => {
-    if (!window.currentTestCases || !window.currentTestCases.length) return;
-    downloadBlob(buildTestCasesCsv(window.currentTestCases), 'text/csv', `test-cases-${Date.now()}.csv`);
-});
-
-document.getElementById('copyBtn').addEventListener('click', async () => {
-    if (!window.currentTestScenarios) return;
-    await copyToClipboard(window.currentTestScenarios, document.getElementById('copyBtn'));
-});
-
+// Test code
 document.getElementById('downloadCodeBtn').addEventListener('click', () => {
     if (!window.currentTestCode) return;
-    downloadBlob(window.currentTestCode, 'text/plain', `test_code_${Date.now()}.py`);
+    triggerDownload(new Blob([window.currentTestCode], { type: 'text/plain' }), `test_code_${Date.now()}.py`);
 });
 
 document.getElementById('copyCodeBtn').addEventListener('click', async () => {
@@ -546,7 +485,7 @@ document.getElementById('copyCodeBtn').addEventListener('click', async () => {
 });
 
 // ============================================================
-// Analyze Another PR / Try Again
+// Analyze Another / Try Again
 // ============================================================
 document.getElementById('analyzeAnotherBtn').addEventListener('click', () => {
     resultsSection.classList.add('hidden');
@@ -586,8 +525,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function downloadBlob(content, mimeType, filename) {
-    const blob = new Blob([content], { type: mimeType });
+function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -606,14 +544,4 @@ async function copyToClipboard(text, btn) {
     } catch (_) {
         alert('Failed to copy to clipboard');
     }
-}
-
-function buildTestCasesCsv(cases) {
-    const headers = ['ID', 'Title', 'Type', 'Priority', 'Category', 'Steps', 'Expected Result'];
-    const rows = cases.map(tc => [
-        tc.id || '', tc.title || '', tc.type || '', tc.priority || '', tc.category || '',
-        Array.isArray(tc.steps) ? tc.steps.join(' | ') : '',
-        tc.expected_result || ''
-    ].map(cell => `"${String(cell).replace(/"/g, '""')}"`));
-    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
 }

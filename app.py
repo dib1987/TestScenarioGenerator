@@ -1,6 +1,6 @@
 """
-PR Test Scenario Generator - Web Application
-A web interface for generating test scenarios from pull requests.
+Test Scenario & Coverage Generator - Web Application
+A web interface for generating structured test scenarios from code changes.
 """
 
 from flask import Flask, render_template, request, jsonify, Response, send_file
@@ -10,12 +10,14 @@ import json
 import os
 from dotenv import load_dotenv
 import traceback
-import markdown
 from datetime import datetime
 
 import boto3
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
-from src.git_analyzer import GitHubPRAnalyzer, GitAnalyzer
+from src.git_analyzer import GitHubPRAnalyzer
 from src.code_analyzer import CodeAnalyzer
 from src.test_generator import TestScenarioGenerator
 from src.excel_processor import ExcelProcessor, ExcelParseError
@@ -23,7 +25,6 @@ from src.excel_mapper import ExcelMapper
 from src.jira_client import ZephyrScaleClient
 
 # Load environment variables
-# Get the directory of this file
 import pathlib
 env_path = pathlib.Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=env_path, override=True)
@@ -32,9 +33,8 @@ load_dotenv(dotenv_path=env_path, override=True)
 app = Flask(__name__)
 CORS(app)
 
-# Configure app
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32MB max request size (Excel uploads)
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32MB max (Excel uploads)
 
 # Shared Bedrock client — initialised once, reused across requests
 _bedrock_client = boto3.client(
@@ -49,173 +49,121 @@ _bedrock_client = boto3.client(
 @app.before_request
 def require_basic_auth():
     if request.path == '/health':
-        return None  # Health check must stay open for AWS load balancer
+        return None
 
     app_username = os.getenv('APP_USERNAME', '')
     app_password = os.getenv('APP_PASSWORD', '')
 
     if not app_username or not app_password:
-        return None  # Auth disabled if env vars not set
+        return None
 
     auth = request.authorization
     if not auth or auth.username != app_username or auth.password != app_password:
         return Response(
             'Authentication required.',
             401,
-            {'WWW-Authenticate': 'Basic realm="PR Test Generator"'}
+            {'WWW-Authenticate': 'Basic realm="Test Scenario Generator"'}
         )
 
 
 @app.route('/')
 def index():
-    """Render the main page."""
     return render_template('index.html')
 
+
+# ─────────────────────────────────────────────
+# Analysis endpoints
+# ─────────────────────────────────────────────
 
 @app.route('/api/analyze-pr', methods=['POST'])
 def analyze_pr():
     """
-    API endpoint to analyze a pull request and generate test scenarios.
+    Analyse a GitHub pull request and generate structured test cases.
 
-    Expected JSON payload:
-    {
-        "pr_url": "https://github.com/owner/repo/pull/123",
-        "generate_code": false  # optional
-    }
+    JSON payload: { "pr_url": "...", "generate_code": false }
     """
     try:
         data = request.get_json()
-
         if not data or 'pr_url' not in data:
-            return jsonify({
-                'success': False,
-                'error': 'Missing PR URL'
-            }), 400
+            return jsonify({'success': False, 'error': 'Missing PR URL'}), 400
 
         pr_url = data['pr_url'].strip()
         generate_code = data.get('generate_code', False)
 
-        # Parse the GitHub PR URL
         if 'github.com' not in pr_url:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid GitHub PR URL. Must contain github.com'
-            }), 400
+            return jsonify({'success': False, 'error': 'Invalid GitHub PR URL. Must contain github.com'}), 400
 
         parts = pr_url.split('/')
         if len(parts) < 7:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid GitHub PR URL format'
-            }), 400
+            return jsonify({'success': False, 'error': 'Invalid GitHub PR URL format'}), 400
 
         owner = parts[-4]
         repo = parts[-3]
-
         try:
             pr_number = int(parts[-1])
         except ValueError:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid PR number'
-            }), 400
+            return jsonify({'success': False, 'error': 'Invalid PR number'}), 400
 
-        # Step 1: Fetch PR data from GitHub
-        github_token = os.getenv('GITHUB_TOKEN')
-        gh_analyzer = GitHubPRAnalyzer(github_token)
-
+        # Step 1: Fetch from GitHub
+        gh_analyzer = GitHubPRAnalyzer(os.getenv('GITHUB_TOKEN'))
         try:
             diff_text = gh_analyzer.get_pr_diff(owner, repo, pr_number)
             pr_info = gh_analyzer.get_pr_info(owner, repo, pr_number)
         except Exception as e:
             error_msg = str(e)
             if '401' in error_msg:
-                return jsonify({
-                    'success': False,
-                    'error': 'GitHub authentication failed. Please add GITHUB_TOKEN to .env file'
-                }), 401
+                return jsonify({'success': False, 'error': 'GitHub authentication failed. Add GITHUB_TOKEN to .env'}), 401
             elif '404' in error_msg:
-                return jsonify({
-                    'success': False,
-                    'error': 'PR not found. Check the URL and make sure the repository is accessible'
-                }), 404
-            else:
-                return jsonify({
-                    'success': False,
-                    'error': f'GitHub API error: {error_msg}'
-                }), 500
+                return jsonify({'success': False, 'error': 'PR not found. Check the URL and repository access'}), 404
+            return jsonify({'success': False, 'error': f'GitHub API error: {error_msg}'}), 500
 
-        # Step 2: Analyze the code changes
+        # Step 2: Analyse code changes (local)
         code_analyzer = CodeAnalyzer()
         parsed_diff = code_analyzer.parse_diff(diff_text)
         change_types = code_analyzer.identify_change_types(parsed_diff)
         diff_summary = code_analyzer.generate_summary(parsed_diff)
 
-        # Step 3: Generate test scenarios with Claude AI
+        # Step 3: Single Bedrock call → structured test cases
+        test_generator = TestScenarioGenerator()
         try:
-            test_generator = TestScenarioGenerator()
-            test_scenarios = test_generator.generate_test_scenarios(
+            structured_test_cases = test_generator.generate_structured_test_cases(
                 diff_summary=diff_summary,
                 parsed_diff=parsed_diff,
                 change_types=change_types,
-                pr_context=pr_info
+                pr_context=pr_info,
             )
         except Exception as e:
             error_msg = str(e)
             if 'throttlingexception' in error_msg.lower() or 'toomanyrequests' in error_msg.lower():
-                return jsonify({
-                    'success': False,
-                    'error': 'AWS Bedrock request throttled. Please retry after a moment.'
-                }), 429
+                return jsonify({'success': False, 'error': 'AWS Bedrock throttled. Please retry in a moment.'}), 429
             elif 'accessdeniedexception' in error_msg.lower() or 'is not authorized' in error_msg.lower():
-                return jsonify({
-                    'success': False,
-                    'error': 'AWS credentials invalid or lack Bedrock access. Check AWS_ACCESS_KEY_ID and permissions.'
-                }), 401
-            else:
-                return jsonify({
-                    'success': False,
-                    'error': f'AI generation error: {error_msg}'
-                }), 500
+                return jsonify({'success': False, 'error': 'AWS credentials invalid or lack Bedrock access.'}), 401
+            return jsonify({'success': False, 'error': f'AI generation error: {error_msg}'}), 500
 
-        # Step 4: Generate structured test cases (always, silently degrades on failure)
-        structured_test_cases = []
-        try:
-            structured_test_cases = test_generator.generate_structured_test_cases(test_scenarios)
-        except Exception as e:
-            app.logger.warning(f"Failed to generate structured test cases: {e}")
-
-        # Step 5: Optionally generate test code
+        # Step 4: Optionally generate test code
         test_code = None
         if generate_code:
             try:
                 test_code = test_generator.generate_automated_test_code(
-                    test_scenarios=test_scenarios,
+                    structured_test_cases=structured_test_cases,
                     language="python",
-                    framework="pytest"
+                    framework="pytest",
                 )
             except Exception as e:
-                # Don't fail the whole request if code generation fails
                 test_code = f"Error generating test code: {str(e)}"
 
-        # Step 6: Prepare file-by-file analysis
-        file_analyses = []
-        for file_change in parsed_diff[:10]:  # Limit to 10 files for UI
-            file_analyses.append({
-                'file_path': file_change['file_path'],
-                'additions': len(file_change['additions']),
-                'deletions': len(file_change['deletions']),
-                'has_additions': len(file_change['additions']) > 0,
-                'has_deletions': len(file_change['deletions']) > 0
-            })
+        # Step 5: Build file analyses
+        file_analyses = [
+            {
+                'file_path': f['file_path'],
+                'additions': len(f['additions']),
+                'deletions': len(f['deletions']),
+                'has_additions': len(f['additions']) > 0,
+                'has_deletions': len(f['deletions']) > 0,
+            }
+            for f in parsed_diff[:10]
+        ]
 
-        # Step 7: Convert markdown to HTML for better display
-        test_scenarios_html = markdown.markdown(
-            test_scenarios,
-            extensions=['fenced_code', 'tables', 'nl2br']
-        )
-
-        # Return success response
         return jsonify({
             'success': True,
             'data': {
@@ -224,105 +172,87 @@ def analyze_pr():
                     'author': pr_info['author'],
                     'base_branch': pr_info['base_branch'],
                     'head_branch': pr_info['head_branch'],
-                    'state': pr_info['state']
+                    'state': pr_info['state'],
                 },
                 'summary': {
                     'total_files': len(parsed_diff),
                     'total_additions': sum(len(f['additions']) for f in parsed_diff),
-                    'total_deletions': sum(len(f['deletions']) for f in parsed_diff)
+                    'total_deletions': sum(len(f['deletions']) for f in parsed_diff),
                 },
                 'file_analyses': file_analyses,
                 'change_types': change_types,
-                'test_scenarios': test_scenarios,
-                'test_scenarios_html': test_scenarios_html,
                 'structured_test_cases': structured_test_cases,
                 'test_code': test_code,
-                'generated_at': datetime.now().isoformat()
+                'generated_at': datetime.now().isoformat(),
             }
         })
 
     except Exception as e:
-        # Catch-all error handler
-        app.logger.error(f"Unexpected error: {traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'error': f'Unexpected error: {str(e)}'
-        }), 500
+        app.logger.error("analyze_pr error: %s", traceback.format_exc())
+        return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'}), 500
 
 
 @app.route('/api/analyze-diff', methods=['POST'])
 def analyze_diff():
     """
-    API endpoint to analyze a manual git diff.
+    Analyse a manually pasted git diff and generate structured test cases.
 
-    Expected JSON payload:
-    {
-        "diff_text": "git diff content...",
-        "generate_code": false  # optional
-    }
+    JSON payload: { "diff_text": "...", "generate_code": false }
     """
     try:
         data = request.get_json()
-
         if not data or 'diff_text' not in data:
-            return jsonify({
-                'success': False,
-                'error': 'Missing diff text'
-            }), 400
+            return jsonify({'success': False, 'error': 'Missing diff text'}), 400
 
         diff_text = data['diff_text'].strip()
         generate_code = data.get('generate_code', False)
 
         if not diff_text:
-            return jsonify({
-                'success': False,
-                'error': 'Diff text is empty'
-            }), 400
+            return jsonify({'success': False, 'error': 'Diff text is empty'}), 400
 
-        # Analyze the code changes
+        # Analyse code changes (local)
         code_analyzer = CodeAnalyzer()
         parsed_diff = code_analyzer.parse_diff(diff_text)
         change_types = code_analyzer.identify_change_types(parsed_diff)
         diff_summary = code_analyzer.generate_summary(parsed_diff)
 
-        # Generate test scenarios
+        # Single Bedrock call → structured test cases
         test_generator = TestScenarioGenerator()
-        test_scenarios = test_generator.generate_test_scenarios(
-            diff_summary=diff_summary,
-            parsed_diff=parsed_diff,
-            change_types=change_types,
-            pr_context=None
-        )
-
-        # Generate structured test cases (always, silently degrades on failure)
-        structured_test_cases = []
         try:
-            structured_test_cases = test_generator.generate_structured_test_cases(test_scenarios)
+            structured_test_cases = test_generator.generate_structured_test_cases(
+                diff_summary=diff_summary,
+                parsed_diff=parsed_diff,
+                change_types=change_types,
+                pr_context=None,
+            )
         except Exception as e:
-            app.logger.warning(f"Failed to generate structured test cases: {e}")
+            error_msg = str(e)
+            if 'throttlingexception' in error_msg.lower() or 'toomanyrequests' in error_msg.lower():
+                return jsonify({'success': False, 'error': 'AWS Bedrock throttled. Please retry in a moment.'}), 429
+            elif 'accessdeniedexception' in error_msg.lower() or 'is not authorized' in error_msg.lower():
+                return jsonify({'success': False, 'error': 'AWS credentials invalid or lack Bedrock access.'}), 401
+            return jsonify({'success': False, 'error': f'AI generation error: {error_msg}'}), 500
 
         # Optionally generate test code
         test_code = None
         if generate_code:
-            test_code = test_generator.generate_automated_test_code(
-                test_scenarios=test_scenarios,
-                language="python",
-                framework="pytest"
-            )
+            try:
+                test_code = test_generator.generate_automated_test_code(
+                    structured_test_cases=structured_test_cases,
+                    language="python",
+                    framework="pytest",
+                )
+            except Exception as e:
+                test_code = f"Error generating test code: {str(e)}"
 
-        # Prepare response
-        file_analyses = []
-        for file_change in parsed_diff[:10]:
-            file_analyses.append({
-                'file_path': file_change['file_path'],
-                'additions': len(file_change['additions']),
-                'deletions': len(file_change['deletions'])
-            })
-
-        test_scenarios_html = markdown.markdown(
-            test_scenarios,
-            extensions=['fenced_code', 'tables', 'nl2br']
-        )
+        file_analyses = [
+            {
+                'file_path': f['file_path'],
+                'additions': len(f['additions']),
+                'deletions': len(f['deletions']),
+            }
+            for f in parsed_diff[:10]
+        ]
 
         return jsonify({
             'success': True,
@@ -330,33 +260,98 @@ def analyze_diff():
                 'summary': {
                     'total_files': len(parsed_diff),
                     'total_additions': sum(len(f['additions']) for f in parsed_diff),
-                    'total_deletions': sum(len(f['deletions']) for f in parsed_diff)
+                    'total_deletions': sum(len(f['deletions']) for f in parsed_diff),
                 },
                 'file_analyses': file_analyses,
                 'change_types': change_types,
-                'test_scenarios': test_scenarios,
-                'test_scenarios_html': test_scenarios_html,
                 'structured_test_cases': structured_test_cases,
                 'test_code': test_code,
-                'generated_at': datetime.now().isoformat()
+                'generated_at': datetime.now().isoformat(),
             }
         })
 
     except Exception as e:
-        app.logger.error(f"Error: {traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'error': f'Error: {str(e)}'
-        }), 500
+        app.logger.error("analyze_diff error: %s", traceback.format_exc())
+        return jsonify({'success': False, 'error': f'Error: {str(e)}'}), 500
 
 
-@app.route('/health')
-def health():
-    """Health check endpoint."""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat()
-    })
+# ─────────────────────────────────────────────
+# Excel download endpoints
+# ─────────────────────────────────────────────
+
+@app.route('/api/download-test-cases-excel', methods=['POST'])
+def download_test_cases_excel():
+    """
+    Convert structured test cases JSON to a formatted Excel workbook.
+
+    JSON payload: { "test_cases": [...] }
+    Returns: .xlsx file download
+    """
+    try:
+        data = request.get_json()
+        test_cases = data.get('test_cases', []) if data else []
+
+        if not test_cases:
+            return jsonify({'success': False, 'error': 'No test cases provided'}), 400
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Test Cases'
+
+        header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
+        header_font = Font(color='FFFFFF', bold=True, size=11)
+        alt_fill = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
+
+        headers = ['ID', 'Title', 'Type', 'Priority', 'Category', 'Test Steps', 'Expected Result']
+        ws.append(headers)
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        ws.row_dimensions[1].height = 28
+
+        for i, tc in enumerate(test_cases, start=2):
+            steps_text = '\n'.join(tc.get('steps', [])) if isinstance(tc.get('steps'), list) else str(tc.get('steps', ''))
+            row_data = [
+                tc.get('id', ''),
+                tc.get('title', ''),
+                tc.get('type', ''),
+                tc.get('priority', ''),
+                tc.get('category', ''),
+                steps_text,
+                tc.get('expected_result', ''),
+            ]
+            ws.append(row_data)
+            fill = alt_fill if i % 2 == 0 else PatternFill(fill_type=None)
+            for col_idx in range(1, len(headers) + 1):
+                cell = ws.cell(row=i, column=col_idx)
+                if i % 2 == 0:
+                    cell.fill = alt_fill
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+            ws.row_dimensions[i].height = 60
+
+        col_widths = [10, 35, 14, 12, 20, 60, 45]
+        for col_idx, width in enumerate(col_widths, start=1):
+            ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+        ws.freeze_panes = 'A2'
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = f"test_cases_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+        )
+
+    except Exception as exc:
+        app.logger.error("download_test_cases_excel error: %s", traceback.format_exc())
+        return jsonify({'success': False, 'error': f'Download error: {str(exc)}'}), 500
 
 
 @app.route('/api/map-excel', methods=['POST'])
@@ -364,12 +359,11 @@ def map_excel():
     """
     Map generated test cases against an uploaded Excel test case file.
 
-    Expected multipart/form-data:
-        excel_file          – .xlsx / .xls file upload
-        structured_test_cases – JSON string (array from /api/analyze-pr or /api/analyze-diff)
+    multipart/form-data:
+        excel_file            – .xlsx / .xls upload
+        structured_test_cases – JSON string (array)
     """
     try:
-        # Validate inputs
         if 'excel_file' not in request.files:
             return jsonify({'success': False, 'error': 'No Excel file uploaded.'}), 400
 
@@ -385,18 +379,15 @@ def map_excel():
         except (json.JSONDecodeError, ValueError) as exc:
             return jsonify({'success': False, 'error': f'Invalid structured_test_cases: {exc}'}), 400
 
-        # Parse Excel
         try:
             file_bytes = file.read()
             excel_rows = ExcelProcessor.parse(file_bytes)
         except ExcelParseError as exc:
             return jsonify({'success': False, 'error': str(exc)}), 422
 
-        # Run AI mapping
         mapper = ExcelMapper(_bedrock_client)
         result = mapper.map(excel_rows, generated_cases)
 
-        # Build new_generated list (full TC objects for the NEW rows)
         generated_by_id = {tc.get('id', ''): tc for tc in generated_cases}
         new_generated = [generated_by_id[tc_id] for tc_id in result.new_generated_ids if tc_id in generated_by_id]
 
@@ -419,9 +410,9 @@ def download_mapped_excel():
     """
     Produce a colour-coded Excel workbook with mapping results.
 
-    Expected multipart/form-data:
-        excel_file      – original .xlsx / .xls upload
-        mapping_result  – JSON string: { mappings, new_generated, stats }
+    multipart/form-data:
+        excel_file     – original upload
+        mapping_result – JSON string: { mappings, new_generated, stats }
     """
     try:
         if 'excel_file' not in request.files:
@@ -430,22 +421,22 @@ def download_mapped_excel():
         file = request.files['excel_file']
         file_bytes = file.read()
 
-        mapping_json = request.form.get('mapping_result', '{}')
         try:
-            mapping_data = json.loads(mapping_json)
+            mapping_data = json.loads(request.form.get('mapping_result', '{}'))
         except json.JSONDecodeError as exc:
             return jsonify({'success': False, 'error': f'Invalid mapping_result JSON: {exc}'}), 400
 
-        mappings = mapping_data.get('mappings', [])
-        new_generated = mapping_data.get('new_generated', [])
-
-        # Re-parse excel rows to pass to build_output
         try:
             excel_rows = ExcelProcessor.parse(file_bytes)
         except ExcelParseError as exc:
             return jsonify({'success': False, 'error': str(exc)}), 422
 
-        output_bytes = ExcelProcessor.build_output(file_bytes, excel_rows, mappings, new_generated)
+        output_bytes = ExcelProcessor.build_output(
+            file_bytes,
+            excel_rows,
+            mapping_data.get('mappings', []),
+            mapping_data.get('new_generated', []),
+        )
 
         filename = f"mapped_test_cases_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         return send_file(
@@ -460,29 +451,31 @@ def download_mapped_excel():
         return jsonify({'success': False, 'error': f'Download error: {str(exc)}'}), 500
 
 
+# ─────────────────────────────────────────────
+# Health / Jira
+# ─────────────────────────────────────────────
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+
+
 @app.route('/api/jira/health', methods=['GET'])
 def jira_health():
-    """
-    Check Jira / Zephyr Scale connectivity.
-    Returns { enabled: false } when JIRA_BASE_URL is not configured.
-    """
     client = ZephyrScaleClient.from_env()
     if client is None:
         return jsonify({'enabled': False, 'connected': False})
-    connected = client.health_check()
-    return jsonify({'enabled': True, 'connected': connected})
+    return jsonify({'enabled': True, 'connected': client.health_check()})
 
 
 if __name__ == '__main__':
-    # Run the Flask app
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
 
     print("=" * 70)
-    print("PR Test Scenario Generator - Web Application")
+    print("Test Scenario & Coverage Generator")
     print("=" * 70)
     print(f"\nServer starting on http://localhost:{port}")
-    print("\nOpen your browser and navigate to the URL above")
     print("\nPress Ctrl+C to stop the server")
     print("=" * 70)
 

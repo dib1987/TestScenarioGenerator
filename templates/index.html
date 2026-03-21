@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PR Test Scenario Generator</title>
+    <title>Test Scenario &amp; Coverage Generator</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -14,14 +14,14 @@
         <header class="header">
             <div class="logo">
                 <i class="fas fa-flask"></i>
-                <h1>PR Test Scenario Generator</h1>
+                <h1>Test Scenario &amp; Coverage Generator</h1>
                 <div class="jira-badge hidden" id="jiraBadge" title="Jira + Zephyr Scale">
                     <i class="fab fa-jira"></i>
                     <span id="jiraBadgeText">Jira</span>
                     <span class="jira-dot" id="jiraDot"></span>
                 </div>
             </div>
-            <p class="subtitle">Automatically generate comprehensive test scenarios from your pull requests using AI</p>
+            <p class="subtitle">Analyse code changes, generate structured test scenarios, and map coverage against your existing test suite &mdash; powered by AI</p>
         </header>
 
         <!-- Main Content -->
@@ -216,30 +216,6 @@
                     </div>
                 </div>
 
-                <!-- Test Scenarios Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <i class="fas fa-vial"></i>
-                        <h2>Generated Test Scenarios</h2>
-                        <div class="card-actions">
-                            <button class="btn btn-secondary btn-sm" id="downloadMdBtn">
-                                <i class="fas fa-download"></i> Download MD
-                            </button>
-                            <button class="btn btn-secondary btn-sm hidden" id="downloadScenariosCsvBtn">
-                                <i class="fas fa-file-csv"></i> Download CSV
-                            </button>
-                            <button class="btn btn-secondary btn-sm" id="copyBtn">
-                                <i class="fas fa-copy"></i> Copy
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="test-scenarios" id="testScenarios">
-                            <!-- Will be populated by JavaScript -->
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Structured Test Cases Card -->
                 <div class="card hidden" id="testCasesCard">
                     <div class="card-header">
@@ -248,7 +224,7 @@
                         <span class="badge" id="testCasesCount"></span>
                         <div class="card-actions">
                             <button class="btn btn-secondary btn-sm" id="downloadCasesBtn">
-                                <i class="fas fa-download"></i> Download CSV
+                                <i class="fas fa-file-excel" style="color:#1d6f42"></i> Download Excel
                             </button>
                         </div>
                     </div>

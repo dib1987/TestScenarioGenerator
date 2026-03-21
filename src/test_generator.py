@@ -1,6 +1,7 @@
 """
 Test Generator Module
-Uses Claude AI to generate comprehensive test scenarios from code changes.
+Uses Claude AI (via AWS Bedrock) to generate structured test scenarios directly from code changes.
+Single Bedrock call per analysis — no intermediate markdown step.
 """
 
 import boto3
@@ -10,15 +11,9 @@ from typing import Dict, List
 
 
 class TestScenarioGenerator:
-    """Generates test scenarios using Claude AI."""
+    """Generates structured test scenarios using Claude AI."""
 
     def __init__(self, model: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"):
-        """
-        Initialize the Test Scenario Generator.
-
-        Args:
-            model: Bedrock Claude model ID to use
-        """
         self.client = boto3.client(
             "bedrock-runtime",
             region_name=os.getenv("AWS_REGION", "us-east-1"),
@@ -28,159 +23,29 @@ class TestScenarioGenerator:
         )
         self.model = model
 
-    def generate_test_scenarios(
+    def generate_structured_test_cases(
         self,
         diff_summary: str,
         parsed_diff: List[Dict],
         change_types: Dict[str, List[str]],
-        pr_context: Dict = None
-    ) -> str:
+        pr_context: Dict = None,
+    ) -> list:
         """
-        Generate comprehensive test scenarios based on code changes.
+        Generate structured test cases directly from code change data.
+
+        Single Bedrock call — returns a JSON list without an intermediate markdown step.
 
         Args:
-            diff_summary: Human-readable summary of changes
-            parsed_diff: Structured diff information
-            change_types: Categorized change types
-            pr_context: Optional PR information (title, description, etc.)
+            diff_summary:  Human-readable summary of changes.
+            parsed_diff:   Structured diff (files, additions, deletions).
+            change_types:  Categorised change types from CodeAnalyzer.
+            pr_context:    Optional PR metadata (title, description, etc.).
 
         Returns:
-            Generated test scenarios as a string
+            List of test case dicts, or [] on parse failure.
+            Each dict: {id, title, type, priority, category, steps[], expected_result}
         """
-        # Build the prompt for Claude
-        prompt = self._build_prompt(diff_summary, parsed_diff, change_types, pr_context)
-
-        # Call Claude API via Bedrock
-        response = self.client.invoke_model(
-            modelId=self.model,
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-                "messages": [{"role": "user", "content": prompt}]
-            })
-        )
-
-        # Extract the response
-        test_scenarios = json.loads(response["body"].read())["content"][0]["text"]
-        return test_scenarios
-
-    def _build_prompt(
-        self,
-        diff_summary: str,
-        parsed_diff: List[Dict],
-        change_types: Dict[str, List[str]],
-        pr_context: Dict = None
-    ) -> str:
-        """
-        Build a comprehensive prompt for Claude.
-
-        Args:
-            diff_summary: Summary of changes
-            parsed_diff: Parsed diff data
-            change_types: Categorized changes
-            pr_context: PR context information
-
-        Returns:
-            Formatted prompt string
-        """
-        prompt = """You are an expert software testing engineer. Your task is to analyze code changes from a pull request and generate comprehensive test scenarios.
-
-## Code Changes Summary
-"""
-        prompt += diff_summary + "\n\n"
-
-        # Add PR context if available
-        if pr_context:
-            prompt += "## Pull Request Context\n"
-            prompt += f"Title: {pr_context.get('title', 'N/A')}\n"
-            prompt += f"Description: {pr_context.get('description', 'N/A')}\n\n"
-
-        # Add change types
-        prompt += "## Types of Changes Detected\n"
-        for change_type, changes in change_types.items():
-            if changes:
-                prompt += f"\n### {change_type.replace('_', ' ').title()}\n"
-                for change in changes:
-                    prompt += f"- {change}\n"
-
-        # Add detailed file changes
-        prompt += "\n## Detailed File Changes\n"
-        for file_change in parsed_diff[:5]:  # Limit to first 5 files for token efficiency
-            prompt += f"\n### File: {file_change['file_path']}\n"
-            prompt += f"Additions: {len(file_change['additions'])} lines\n"
-            prompt += f"Deletions: {len(file_change['deletions'])} lines\n"
-
-            if file_change['additions']:
-                prompt += "\nKey additions:\n"
-                for line in file_change['additions'][:10]:  # First 10 additions
-                    if line.strip():
-                        prompt += f"  + {line}\n"
-
-        # Add instructions for test generation
-        prompt += """
-
-## Your Task
-Generate comprehensive test scenarios for these code changes. Include only these three test types:
-
-1. **Functional Tests**: Verify that each changed feature or behaviour works as expected from a user perspective
-2. **Regression Tests**: Ensure existing functionality that could be affected by these changes still works correctly
-3. **End-to-End (E2E) Tests**: Validate complete user journeys and workflows that touch the changed areas
-
-For each test scenario, provide:
-- **Test Name**: Clear, descriptive name a business stakeholder can understand
-- **Test Type**: Functional / Regression / E2E
-- **Objective**: What business behaviour this test verifies
-- **Steps**: Written in plain business language — describe what a user does or what the system does, NOT how it is implemented. Do NOT reference method names, function calls, class names, API endpoints, database queries, or any code-level detail.
-- **Expected Result**: What the user or system should observe when the test passes
-- **Priority**: High/Medium/Low
-
-IMPORTANT for Steps: Each step must be understandable by a non-technical QA engineer or business analyst.
-Good example: "Navigate to the checkout page and enter valid payment details, then confirm the order."
-Bad example: "Call `PaymentService.processPayment()` with a valid PaymentDTO object."
-
-Format your response as a structured test plan that a QA engineer and business team can follow.
-"""
-
-        return prompt
-
-    def generate_structured_test_cases(self, test_scenarios: str) -> list:
-        """
-        Convert test scenarios markdown into a structured JSON list of test cases.
-
-        Args:
-            test_scenarios: The markdown test scenarios text from generate_test_scenarios()
-
-        Returns:
-            List of test case dicts, or [] on parse failure
-        """
-        prompt = f"""Convert the following test scenarios into a structured JSON array of individual test cases.
-
-Test Scenarios:
-{test_scenarios}
-
-Return ONLY a valid JSON array with no other text. Each element must follow this exact schema:
-[
-  {{
-    "id": "TC-001",
-    "title": "Short descriptive title (max 10 words)",
-    "type": "functional",
-    "priority": "high",
-    "category": "Category name (e.g. Authentication, Checkout, User Profile, Notifications)",
-    "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
-    "expected_result": "What should happen when the test passes"
-  }}
-]
-
-Rules:
-- "type" must be one of: functional, regression, e2e
-- "priority" must be one of: high, medium, low
-- "steps" must be a list of strings (at least 2 steps per test case)
-- CRITICAL for "steps": Write every step in plain business language that a non-technical QA engineer or business analyst can understand and execute. Do NOT mention method names, function calls, class names, API routes, database tables, or any code-level implementation detail. Describe what a user does or what the system does from a user perspective.
-  Good step: "Open the account settings page and update the email address to a new valid address, then save the changes."
-  Bad step: "Call UserService.updateEmail() with a valid email string and assert HTTP 200."
-- Extract every distinct test case from the scenarios above
-- Return only the JSON array, no markdown formatting, no explanation"""
+        prompt = self._build_structured_prompt(diff_summary, parsed_diff, change_types, pr_context)
 
         response = self.client.invoke_model(
             modelId=self.model,
@@ -188,61 +53,125 @@ Rules:
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
                 "temperature": 0.3,
-                "messages": [{"role": "user", "content": prompt}]
-            })
+                "messages": [{"role": "user", "content": prompt}],
+            }),
         )
 
         text = json.loads(response["body"].read())["content"][0]["text"].strip()
 
         # Strip markdown code fences if Claude wrapped the JSON
         if text.startswith("```"):
-            # Find the first newline (end of opening fence line) and last fence
             first_newline = text.index("\n")
             last_fence = text.rfind("```")
-            if last_fence > first_newline:
-                text = text[first_newline + 1:last_fence].strip()
-            else:
-                text = text[first_newline + 1:].strip()
+            text = text[first_newline + 1: last_fence].strip() if last_fence > first_newline else text[first_newline + 1:].strip()
 
         try:
             result = json.loads(text)
-            if isinstance(result, list):
-                return result
-            return []
+            return result if isinstance(result, list) else []
         except (json.JSONDecodeError, ValueError):
             return []
 
+    def _build_structured_prompt(
+        self,
+        diff_summary: str,
+        parsed_diff: List[Dict],
+        change_types: Dict[str, List[str]],
+        pr_context: Dict = None,
+    ) -> str:
+        """Build the single prompt that produces structured test cases directly."""
+
+        prompt = "You are a senior QA engineer. Analyse the following code changes and return a structured JSON array of test cases.\n\n"
+
+        prompt += "## Code Changes Summary\n"
+        prompt += diff_summary + "\n\n"
+
+        if pr_context:
+            prompt += "## Pull Request Context\n"
+            prompt += f"Title: {pr_context.get('title', 'N/A')}\n"
+            prompt += f"Description: {pr_context.get('description', 'N/A')}\n\n"
+
+        prompt += "## Types of Changes Detected\n"
+        for change_type, changes in change_types.items():
+            if changes:
+                prompt += f"\n### {change_type.replace('_', ' ').title()}\n"
+                for change in changes:
+                    prompt += f"- {change}\n"
+
+        prompt += "\n## Detailed File Changes\n"
+        for file_change in parsed_diff[:5]:
+            prompt += f"\n### File: {file_change['file_path']}\n"
+            prompt += f"Additions: {len(file_change['additions'])} lines | Deletions: {len(file_change['deletions'])} lines\n"
+            if file_change["additions"]:
+                prompt += "Key additions:\n"
+                for line in file_change["additions"][:10]:
+                    if line.strip():
+                        prompt += f"  + {line}\n"
+
+        prompt += """
+
+## Output Requirements
+
+Return ONLY a valid JSON array — no markdown fences, no explanation, no surrounding text.
+
+Each element must follow this exact schema:
+[
+  {
+    "id": "TC-001",
+    "title": "Short descriptive title (max 10 words)",
+    "type": "functional",
+    "priority": "high",
+    "category": "Category (e.g. Payment, Authentication, Product, Checkout)",
+    "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
+    "expected_result": "What the user or system should observe when the test passes"
+  }
+]
+
+Rules:
+- Include ONLY these three test types: functional, regression, e2e
+- "priority" must be: high, medium, or low
+- "steps" must have at least 2 items
+- CRITICAL — Steps must be written in plain business language:
+    Good: "Navigate to the checkout page and enter valid payment details, then confirm the order."
+    Bad:  "Call PaymentService.processPayment() with a valid PaymentDTO object."
+  Do NOT mention method names, class names, function calls, API routes, database queries, or any code-level detail.
+  Describe what a user does or what the system does from a user/business perspective.
+- Generate enough test cases to provide meaningful coverage of all detected changes
+- Cover happy paths, negative paths, and boundary conditions across functional, regression, and e2e types
+"""
+        return prompt
+
     def generate_automated_test_code(
         self,
-        test_scenarios: str,
+        structured_test_cases: list,
         language: str = "python",
-        framework: str = "pytest"
+        framework: str = "pytest",
     ) -> str:
         """
-        Generate actual test code from test scenarios.
+        Generate runnable test code from structured test cases.
 
         Args:
-            test_scenarios: The test scenarios text
-            language: Programming language for tests
-            framework: Testing framework to use
+            structured_test_cases: List of test case dicts from generate_structured_test_cases().
+            language:  Target programming language (default: python).
+            framework: Test framework (default: pytest).
 
         Returns:
-            Generated test code
+            Generated test code as a string.
         """
-        prompt = f"""Based on the following test scenarios, generate actual test code in {language} using {framework}.
+        cases_json = json.dumps(structured_test_cases, indent=2)
 
-Test Scenarios:
-{test_scenarios}
+        prompt = f"""Based on the following structured test cases, generate actual {language} test code using {framework}.
+
+Test Cases:
+{cases_json}
 
 Generate complete, runnable test code with:
 - Proper imports and setup
-- Well-named test functions
-- Assertions and validations
-- Comments explaining the tests
-- Mock data where needed
+- One test function per test case, named after the test case title
+- Assertions and validations matching the expected results
+- Comments explaining the business intent of each test
+- Mock data and fixtures where needed
 
-Provide the code in a format ready to copy into a test file.
-"""
+Provide the code ready to copy into a test file."""
 
         response = self.client.invoke_model(
             modelId=self.model,
@@ -250,8 +179,8 @@ Provide the code in a format ready to copy into a test file.
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
                 "temperature": 0.5,
-                "messages": [{"role": "user", "content": prompt}]
-            })
+                "messages": [{"role": "user", "content": prompt}],
+            }),
         )
 
         return json.loads(response["body"].read())["content"][0]["text"]
