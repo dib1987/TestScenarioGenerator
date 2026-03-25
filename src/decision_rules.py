@@ -82,9 +82,10 @@ def _decide(status: str, confidence: int) -> tuple:
                 "Manual Review",
             )
 
-    # NOT IMPACTED — no existing test covers this generated scenario at all
+    # NOT IMPACTED — this existing test case is unrelated to the PR changes.
+    # The PR did not touch this area, so there is no need to run it.
     return (
-        "MUST_ADD_AND_RUN",
-        "No existing test covers this generated scenario. A new test case must be added before release.",
-        "Add New Test",
+        "SKIP",
+        "This test is not impacted by the PR changes. Safe to exclude from this regression run.",
+        "No Action Required",
     )
