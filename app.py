@@ -23,6 +23,7 @@ from src.test_generator import TestScenarioGenerator
 from src.excel_processor import ExcelProcessor, ExcelParseError
 from src.excel_mapper import ExcelMapper
 from src.jira_client import ZephyrScaleClient
+from src.decision_rules import apply_decision
 
 # Load environment variables
 import pathlib
@@ -431,10 +432,14 @@ def download_mapped_excel():
         except ExcelParseError as exc:
             return jsonify({'success': False, 'error': str(exc)}), 422
 
-        output_bytes = ExcelProcessor.build_output(
+        # Apply deterministic execution decisions to every mapping entry.
+        # apply_decision() is a pure function — no I/O, no AI calls.
+        mappings = [apply_decision(m) for m in mapping_data.get('mappings', [])]
+
+        output_bytes = ExcelProcessor.build_decision_output(
             file_bytes,
             excel_rows,
-            mapping_data.get('mappings', []),
+            mappings,
             mapping_data.get('new_generated', []),
         )
 
