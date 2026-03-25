@@ -372,10 +372,15 @@ class ExcelProcessor:
             )
             next_row += 1
 
-            # NEW rows column headers
+            # NEW rows column headers — include the 3 decision columns so they align
             new_headers = ["TC ID", "Title", "Type", "Priority", "Category", "Steps", "Expected Result"]
             for col_offset, hdr in enumerate(new_headers, start=1):
                 cell = ws.cell(row=next_row, column=col_offset, value=hdr)
+                cell.fill = HEADER_FILL
+                cell.font = HEADER_FONT
+            # Write decision column headers at the same positions used in the main section
+            for offset, hdr in enumerate(DECISION_COLUMNS):
+                cell = ws.cell(row=next_row, column=mapping_col_start + 5 + offset, value=hdr)
                 cell.fill = HEADER_FILL
                 cell.font = HEADER_FONT
             next_row += 1
@@ -400,6 +405,25 @@ class ExcelProcessor:
                     cell = ws.cell(row=next_row, column=col_offset, value=val)
                     cell.fill = row_fill
                     cell.alignment = Alignment(wrap_text=True)
+
+                # Every NEW TC has no existing coverage — always MUST_ADD_AND_RUN
+                decision_cell = ws.cell(
+                    row=next_row,
+                    column=mapping_col_start + 5,
+                    value="MUST_ADD_AND_RUN",
+                )
+                decision_cell.fill = DECISION_FILLS["MUST_ADD_AND_RUN"]
+                ws.cell(
+                    row=next_row,
+                    column=mapping_col_start + 6,
+                    value="No existing test covers this generated scenario. A new test case must be added before release.",
+                ).fill = row_fill
+                ws.cell(
+                    row=next_row,
+                    column=mapping_col_start + 7,
+                    value="Add New Test",
+                ).fill = row_fill
+
                 next_row += 1
 
         # Auto-size columns (capped at 60 chars to avoid absurdly wide columns)
